@@ -1,84 +1,93 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Neon Coast Cover Studio — GTA 6 Cover Art</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23ff2e88'/%3E%3C/svg%3E">
+<style>
+  /* Font lokal (SIL OFL 1.1, lihat fonts/OFL.txt). */
+  @font-face {
+    font-family: "Anton";
+    src: url("fonts/Anton-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: "Pacifico";
+    src: url("fonts/Pacifico-Regular.ttf") format("truetype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+</style>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header class="top">
-  <h1>Neon Coast <em>Cover Studio</em></h1>
-  <p>Ubah foto + caption jadi cover art gaya poster GTA 6 — offline, tanpa upload.</p>
-  <span class="tag">Vice City sunset</span>
-</header>
-<main>
-  <aside id="controls">
-    <h2>1 · Foto</h2>
-    <div class="row">
-      <button id="btnUpload" type="button">Pilih Foto…</button>
-      <button id="btnSamples" type="button" class="ghost">Foto Contoh</button>
+<div class="app">
+  <header>
+    <div class="brand">
+      <h1>NEON COAST</h1>
+      <p>Cover Studio — Paid in Sunsets</p>
     </div>
-    <input id="fileInput" type="file" accept="image/*" multiple hidden>
-    <label for="photoMode">Isi panel dengan</label>
-    <select id="photoMode">
-      <option value="one">Satu foto untuk semua panel</option>
-      <option value="many">Foto berbeda per panel</option>
-    </select>
-    <label for="panelPick">Panel yang diedit</label>
-    <select id="panelPick"></select>
-    <label for="zoomRange">Zoom foto panel <span id="zoomVal">100%</span></label>
-    <input id="zoomRange" type="range" min="50" max="300" value="100">
-    <label for="panX">Geser horizontal</label>
-    <input id="panX" type="range" min="-100" max="100" value="0">
-    <label for="panY">Geser vertikal</label>
-    <input id="panY" type="range" min="-100" max="100" value="0">
-    <p class="hint">Seret foto di preview untuk menggeser. Klik panel untuk memilihnya.</p>
+    <div class="spacer"></div>
+    <button id="undoBtn" type="button" disabled>↩ Undo</button>
+    <button id="redoBtn" type="button" disabled>↪ Redo</button>
+    <button id="exportBtn" class="primary" type="button">⬇ Ekspor 3 PNG</button>
+  </header>
 
-    <h2>2 · Layout &amp; Grade</h2>
-    <label>Layout cover</label>
-    <div class="chips" id="layoutChips"></div>
-    <label>Grade warna</label>
-    <div class="swatches" id="gradeSwatches">
-      <button type="button" id="swSunset" data-grade="sunset" title="Sunset" aria-label="Sunset"></button>
-      <button type="button" id="swNeon" data-grade="neon" title="Neon Night" aria-label="Neon Night"></button>
-      <button type="button" id="swTeal" data-grade="teal" title="Teal Pink" aria-label="Teal Pink"></button>
-      <button type="button" id="swGolden" data-grade="golden" title="Golden Hour" aria-label="Golden Hour"></button>
-      <button type="button" id="swNoir" data-grade="noir" title="Noir" aria-label="Noir"></button>
-    </div>
+  <main>
+    <aside class="controls">
+      <section>
+        <h2>Foto</h2>
+        <div id="photoStrip"></div>
+        <div class="row" style="margin-top: 8px">
+          <button id="uploadBtn" type="button">＋ Upload foto</button>
+          <input id="uploadInput" type="file" accept="image/*" hidden>
+        </div>
+        <p id="panelInfo">Pilih panel di kanvas untuk mengeditnya.</p>
+      </section>
 
-    <h2>3 · Caption</h2>
-    <label for="titleInput">Judul (huruf besar tebal)</label>
-    <input id="titleInput" type="text" value="NEON COAST" maxlength="24">
-    <label for="subInput">Subjudul neon (script)</label>
-    <input id="subInput" type="text" value="Vice City nights" maxlength="40">
-    <label for="titleSize">Ukuran judul</label>
-    <input id="titleSize" type="range" min="60" max="150" value="100">
-    <label for="titlePos">Posisi blok judul</label>
-    <select id="titlePos">
-      <option value="bottom">Bawah</option>
-      <option value="top">Atas</option>
-      <option value="center">Tengah</option>
-    </select>
-    <div class="row" style="margin-top:12px">
-      <button id="btnUndo" type="button">↩ Undo</button>
-      <button id="btnRedo" type="button">Redo ↪</button>
-    </div>
-  </aside>
+      <section>
+        <h2>Layout</h2>
+        <div id="layoutPicker"></div>
+      </section>
 
-  <section class="stage">
-    <div class="bar">
-      <button id="btnExport" type="button" class="primary">⬇ Ekspor 3 Ukuran PNG</button>
-      <span id="sizeNote">1080×1080 · 1080×1350 · 1920×1080</span>
-      <span id="status">Siap.</span>
+      <section>
+        <h2>Grade</h2>
+        <div id="gradePicker"></div>
+      </section>
+
+      <section>
+        <h2>Judul</h2>
+        <label for="titleInput">Judul cover</label>
+        <input id="titleInput" type="text" value="NEON COAST" maxlength="24">
+        <label for="subtitleInput">Subjudul neon</label>
+        <input id="subtitleInput" type="text" value="Paid in Sunsets" maxlength="40">
+      </section>
+
+      <section>
+        <h2>Panel terpilih</h2>
+        <div class="row">
+          <button id="shotBtn" type="button">Ganti shot</button>
+          <button id="photoBtn" type="button">Ganti foto</button>
+        </div>
+        <label for="zoomSlider">Zoom panel</label>
+        <input id="zoomSlider" type="range" min="1" max="2.5" step="0.05" value="1">
+        <div class="row" style="margin-top: 8px">
+          <button id="shuffleBtn" type="button">🎲 Acak cast</button>
+        </div>
+      </section>
+    </aside>
+
+    <div class="stage-wrap">
+      <canvas id="stage" width="1280" height="720"></canvas>
+      <p class="hint">Klik panel untuk memilih · seret untuk menggeser crop · semua foto contoh bebas lisensi (CC0 / picsum) · bekerja offline, tanpa server.</p>
     </div>
-    <canvas id="preview" width="1080" height="1080"></canvas>
-    <canvas id="coverCanvas" width="1080" height="1080"></canvas>
-    <p class="hint"><b>3 langkah:</b> 1) pilih foto → 2) atur layout, grade &amp; caption → 3) ekspor. Semua diproses di browsermu; foto tidak pernah di-upload. Font Anton &amp; Pacifico (SIL OFL) di-vendor di <code>app/fonts/</code>.</p>
-  </section>
-</main>
-<footer>Neon Coast Cover Studio — karya orisinal untuk bounty make.fun gta6-cover-art-01. Bukan produk Rockstar Games; tanpa logo, artwork, atau font resmi game.</footer>
-<script type="module" src="src/editor.js"></script>
+  </main>
+
+  <footer>Neon Coast Cover Studio — fan-made cover tool. Bukan produk resmi Rockstar Games / GTA. Font Anton &amp; Pacifico berlisensi SIL OFL 1.1.</footer>
+</div>
+<script type="module" src="src/shots.js"></script>
 </body>
 </html>

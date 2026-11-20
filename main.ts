@@ -1,44 +1,46 @@
-// Neon Coast Cover Studio — entry program for make.fun gta6-cover-art-01.
-// Node 22, standard library only. Hands in the offline browser app: copies
-// app/ and screenshots/ from beside this file into /output and writes
-// /output/dossier.json with the kit's vendored buildDossier library, so the
-// judge reads exactly the app the repository holds. Outside the grader,
-// MAKEFUN_OUTPUT_DIR stands in for /output:
+// Neon Coast Cover Studio v2 — make.fun gta6-cover-art-01 entry program.
+//
+// The entry is a static offline web app: app/index.html plus its modules,
+// vendored fonts and sample photos. This program (Node 22, standard library
+// only) hands the app in by copying app/ and screenshots/ from this
+// repository into the grader's output directory and writing the dossier
+// there with the kit's vendored buildDossier library.
+//
+// Run it locally the same way the grader does:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+// Run it twice and the two outputs must be byte-identical.
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { buildDossier } from './vendor/makefun-app.ts';
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { buildDossier } from "./vendor/makefun-app.ts";
 
-const repoRoot = fileURLToPath(new URL('.', import.meta.url));
-const outputDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
+const repoRoot = fileURLToPath(new URL(".", import.meta.url));
+const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
 
-// Gate caps from the competition (reference/gate.json): app/ at most 993
-// files / 48 MiB, paths at most 1000 bytes, 3-4 screenshots at most 256 KiB,
-// dossier at most 1.5 MiB with 160 KiB of source text. The program refuses
-// nothing itself — it hands in exactly what the repo holds.
-const DOSSIER_TEXT_MAX_BYTES = 163840;
-const SCREENSHOT_MAX_COUNT = 4;
-const SCREENSHOT_MAX_BYTES = 262144;
-const APP_MAX_FILES = 993;
-const APP_MAX_BYTES = 50331648;
-const APP_PATH_MAX_BYTES = 1000;
+// Start from a clean slate so a stale file from an earlier run can never
+// leak into this entry's output.
+rmSync(outDir, { recursive: true, force: true });
+mkdirSync(outDir, { recursive: true });
 
-mkdirSync(outputDir, { recursive: true });
-cpSync(join(repoRoot, 'app'), join(outputDir, 'app'), { recursive: true });
+const appOut = join(outDir, "app");
+cpSync(join(repoRoot, "app"), appOut, { recursive: true });
 
-const shotsDir = join(outputDir, 'screenshots');
-mkdirSync(shotsDir, { recursive: true });
-if (existsSync(join(repoRoot, 'screenshots'))) {
-  cpSync(join(repoRoot, 'screenshots'), shotsDir, { recursive: true });
+const shotsOut = join(outDir, "screenshots");
+mkdirSync(shotsOut, { recursive: true });
+if (existsSync(join(repoRoot, "screenshots"))) {
+  cpSync(join(repoRoot, "screenshots"), shotsOut, { recursive: true });
 }
 
-const dossier = buildDossier(outputDir, {
-  text_max_bytes: DOSSIER_TEXT_MAX_BYTES,
-  screenshots: { max: SCREENSHOT_MAX_COUNT, max_bytes: SCREENSHOT_MAX_BYTES },
-  app_max_files: APP_MAX_FILES,
-  app_max_bytes: APP_MAX_BYTES,
-  app_path_max_bytes: APP_PATH_MAX_BYTES,
+// The sealed gate's own limits (reference/gate.json in the kit): the text
+// cap shapes the dossier bytes; the rest refuse an entry the scorer would
+// refuse, so an oversized entry fails here first, loudly, instead of
+// silently at grading time.
+const dossier = buildDossier(outDir, {
+  text_max_bytes: 163840,
+  screenshots: { max: 4, max_bytes: 262144 },
+  app_max_files: 993,
+  app_max_bytes: 50331648,
+  app_path_max_bytes: 1000,
 });
-writeFileSync(join(outputDir, 'dossier.json'), dossier);
+writeFileSync(join(outDir, "dossier.json"), dossier);

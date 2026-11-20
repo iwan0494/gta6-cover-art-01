@@ -4,26 +4,29 @@
 [![rank](https://make.fun/badge/gta6-cover-art-01/iwan0494/gta6-cover-art-01/rank.svg)](https://make.fun/bounty/gta6-cover-art-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 [![reward](https://make.fun/badge/gta6-cover-art-01/iwan0494/gta6-cover-art-01/reward.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 
-**Neon Coast Cover Studio** — an offline browser app that turns any photo
-and caption into GTA 6-style multi-panel cover art (Vice City neon-sunset
-grade, bold caption lettering), exported as PNG in 1080x1080, 1080x1350 and
-1920x1080. Photos never leave the machine. Built for make.fun's
+**Neon Coast Cover Studio v2** — an offline browser app that turns any photo
+and caption into GTA 6-style key art: a hero close-up that pops out of the
+grid, a cast of different photos in every panel, face-aware crops, a chrome
+3D title, neon script subtitle, role tags, billing block and seal — exported
+as PNG in 1080x1080, 1080x1350 and 1920x1080. Photos never leave the machine.
+Built for make.fun's
 [Make GTA 6 Cover Art](https://make.fun/c/gta6-cover-art-01) bounty.
 
-## Features
+## What v2 changes vs v1
 
-- **6 layouts**: Hero + 3, 4-panel grid, full-bleed, 9-panel grid, tilted
-  snapshot frames, and a vertical Story layout.
-- **5 colour grades**: Sunset, Neon Night, Teal Pink, Golden Hour, Noir —
-  gradient-map wash plus grain and vignette, all rendered on canvas.
-- **Any photo**: upload one photo for every panel or a different photo per
-  panel; drag to pan and zoom/crop each panel; two free sample photos included.
-- **Caption studio**: bold Anton title with outline, glowing Pacifico neon
-  subtitle, size and position controls (top / centre / bottom).
-- **Fast export**: one click downloads all three post sizes at once —
-  1080x1080, 1080x1350, 1920x1080 PNG.
-- **Undo / redo**, live preview, fully offline (no network requests; fonts
-  Anton + Pacifico vendored under `app/fonts/` under the SIL Open Font License).
+- **Key Art layout**: hero close-up breaks the grid, 6 more panels each show
+  a different photo or a different shot — never the same crop twice.
+- **Face-aware crops**: every sample photo carries a measured face box and
+  several shots (close-up, full figure, detail, scene); crops grow around
+  the face, so heads are never cut at the neck.
+- **Chrome 3D title**: Anton lettering with a chrome gradient, striped
+  sunset shadow and top highlight; Pacifico neon subtitle.
+- **Poster furniture**: quote bar, role tags, ribbon, billing block, round
+  seal, barcode, "COMING SOON" — the cover reads as a movie poster.
+- **9 grades** (was 5): Sunset, Neon Night, Teal Pink, Golden Hour, Noir,
+  Vice Violet, Blood Orange, Miami Mint, Chrome Mono.
+- **5 sample photos** (was 2): boulevard driver, pier captain, graffiti
+  artist (CC0), red-lips close-up, night-shift singer.
 
 ## Run it
 
@@ -31,15 +34,12 @@ grade, bold caption lettering), exported as PNG in 1080x1080, 1080x1350 and
 node serve.ts   # open http://localhost:8080
 ```
 
+Pick a layout and a grade, type a title, click a panel to crop it, then
+"Ekspor 3 PNG" downloads all three post sizes at once.
+
 `main.ts` (Node 22, standard library only) copies `app/` and `screenshots/`
 to `/output` and writes `/output/dossier.json` with the kit's vendored
-`buildDossier` library:
-
-```sh
-mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-```
-
-Original work: no Rockstar Games logo, artwork, or font is used anywhere.
+`buildDossier` library.
 
 ---
 

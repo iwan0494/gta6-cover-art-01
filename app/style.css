@@ -1,48 +1,342 @@
-@font-face{font-family:'Anton';src:url('../fonts/Anton-Regular.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Pacifico';src:url('../fonts/Pacifico-Regular.ttf') format('truetype');font-display:swap}
-*{box-sizing:border-box}
-:root{--ink:#f5efe4;--mut:#b8a8c8;--line:#3a2b52;--panel:#171021;--panel2:#1f142e;--acc:#ff7a3d;--acc2:#ff2e88;--teal:#22e6c8;--gold:#ffc53d}
-html,body{margin:0;padding:0;background:#0d0714;color:var(--ink);font:14px/1.45 system-ui,-apple-system,'Segoe UI',sans-serif}
-header.top{display:flex;align-items:center;gap:14px;padding:12px 18px;background:linear-gradient(90deg,#2b0f3d,#12061f 55%,#3d0f2b);border-bottom:2px solid #ff2e88}
-header.top h1{font-family:'Anton',sans-serif;font-size:22px;letter-spacing:2px;margin:0;text-transform:uppercase}
-header.top h1 em{font-style:normal;color:var(--acc)}
-header.top p{margin:0;color:var(--mut);font-size:12px}
-header.top .tag{margin-left:auto;font-family:'Pacifico',cursive;color:var(--gold);font-size:16px;transform:rotate(-3deg)}
-main{display:grid;grid-template-columns:300px 1fr;gap:14px;padding:14px;align-items:start}
-aside{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
-aside h2{font-family:'Anton',sans-serif;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin:16px 0 8px}
-aside h2:first-child{margin-top:0}
-label{display:block;font-size:12px;color:var(--mut);margin:8px 0 3px}
-input[type=text],select{width:100%;padding:8px;border-radius:8px;border:1px solid var(--line);background:#0f0918;color:var(--ink);font-size:14px}
-input[type=range]{width:100%;accent-color:var(--acc2)}
-button{cursor:pointer;border:0;border-radius:9px;padding:9px 12px;font-weight:700;background:#2a1740;color:var(--ink)}
-button:hover{filter:brightness(1.25)}
-button.primary{background:linear-gradient(90deg,#ff7a3d,#ff2e88);color:#fff;width:100%;padding:12px;font-size:15px}
-button.ghost{background:transparent;border:1px solid var(--line)}
-.row{display:flex;gap:8px;flex-wrap:wrap}
-.row button{flex:1}
-.chips{display:flex;gap:6px;flex-wrap:wrap}
-.chips button{padding:7px 10px;font-size:12px}
-.chips button.on{background:var(--acc2);color:#fff}
-.swatches{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
-.swatches button{height:34px;padding:0;border-radius:8px;border:2px solid transparent}
-.swatches button.on{border-color:#fff}
-#swSunset{background:linear-gradient(135deg,#ff9a3d,#ff2e88,#7b2ff7)}
-#swNeon{background:linear-gradient(135deg,#22e6c8,#ff2e88,#1a0b2e)}
-#swTeal{background:linear-gradient(135deg,#00c2ff,#ff5fa2,#12061f)}
-#swGolden{background:linear-gradient(135deg,#ffc53d,#ff7a3d,#7a2b00)}
-#swNoir{background:linear-gradient(135deg,#e8e8e8,#777,#111)}
-.stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
-.stage .bar{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
-.stage .bar span{color:var(--mut);font-size:12px}
-#preview{width:100%;max-height:640px;object-fit:contain;background:#000;border-radius:8px;display:block}
-#coverCanvas{display:none}
-.hint{font-size:12px;color:var(--mut);margin-top:10px}
-.hint b{color:var(--ink)}
-footer{padding:10px 18px;color:var(--mut);font-size:12px;border-top:1px solid var(--line)}
-#shotMode{display:none}
-body.shot header.top,body.shot aside,body.shot footer,body.shot .stage .bar,body.shot .hint{display:none}
-body.shot main{display:block;padding:0}
-body.shot .stage{border:0;border-radius:0;padding:0;background:#000}
-body.shot #preview{max-height:none;border-radius:0}
-@media (max-width:900px){main{grid-template-columns:1fr}}
+/* Neon Coast Cover Studio — UI editor gelap neon.
+   Prinsip (make-interfaces-feel-better):
+   - Elevasi dari shadow berlapis TRANSPARAN, bukan border.
+   - Outline 1px low-opacity di tepi gambar (putih 10% di dark mode).
+   - Radius konsentris: luar = dalam + padding.
+   - Press scale 0.96, transisi <=300ms, properti spesifik (bukan all).
+   - -webkit-font-smoothing antialiased, tabular-nums untuk angka. */
+
+* { box-sizing: border-box; }
+
+:root {
+  --bg: #0d0718;
+  --panel: #17102a;
+  --panel-2: #1e1436;
+  --ink: #f6f0ff;
+  --muted: #b9a8d6;
+  --pink: #ff2e88;
+  --cyan: #22e6ff;
+  --gold: #ffc94d;
+  --line: rgba(246, 240, 255, 0.10);
+  /* Shadow berlapis: dekat + jauh, keduanya transparan. */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 14px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 2px 4px rgba(0, 0, 0, 0.40), 0 10px 28px rgba(0, 0, 0, 0.45), 0 24px 60px rgba(0, 0, 0, 0.30);
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ---------------------------------------------------------------- header */
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: var(--panel);
+  box-shadow: var(--shadow-1);
+  position: relative;
+  z-index: 2;
+}
+
+.brand h1 {
+  margin: 0;
+  font-family: Anton, "Arial Black", sans-serif;
+  font-size: 26px;
+  letter-spacing: 0.04em;
+  background: linear-gradient(180deg, #ffffff 0%, #ffd97a 55%, #ff2e88 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Ekstrusi tipis di DOM: bayangan berlapis. */
+  filter: drop-shadow(2px 2px 0 rgba(20, 4, 12, 0.9)) drop-shadow(4px 4px 0 rgba(20, 4, 12, 0.55));
+}
+
+.brand p {
+  margin: 2px 0 0;
+  font-family: Pacifico, cursive;
+  font-size: 14px;
+  color: var(--pink);
+  text-shadow: 0 0 12px rgba(255, 46, 136, 0.7);
+}
+
+header .spacer { flex: 1; }
+
+button {
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 9px 14px;
+  min-height: 40px;
+  cursor: pointer;
+  box-shadow: var(--shadow-1);
+  transition-property: transform, box-shadow, background-color, border-color;
+  transition-duration: 200ms;
+  transition-timing-function: var(--ease);
+}
+
+button:hover:not(:disabled) {
+  background: #251a45;
+  box-shadow: var(--shadow-2);
+}
+
+button:active:not(:disabled) { transform: scale(0.96); }
+
+button:disabled { opacity: 0.4; cursor: default; }
+
+button.primary {
+  background: linear-gradient(135deg, var(--pink), #ff6a3d);
+  border-color: transparent;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------------ main */
+main {
+  display: flex;
+  gap: 16px;
+  padding: 16px 20px;
+  flex: 1;
+  align-items: flex-start;
+}
+
+.controls {
+  width: 300px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.controls section {
+  background: var(--panel);
+  border-radius: 16px; /* luar = dalam 10 + padding 6 */
+  padding: 12px;
+  box-shadow: var(--shadow-1);
+}
+
+.controls h2 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.controls label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 8px 0 4px;
+}
+
+.controls input[type="text"] {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #0d0718;
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.controls input[type="text"]:focus {
+  outline: 2px solid var(--cyan);
+  outline-offset: 1px;
+}
+
+.controls input[type="range"] {
+  width: 100%;
+  accent-color: var(--pink);
+}
+
+/* Foto contoh: thumbnail dengan outline 1px putih low-opacity. */
+#photoStrip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.thumb {
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+  min-height: 0;
+  position: relative;
+  box-shadow: var(--shadow-1);
+}
+
+.thumb img {
+  display: block;
+  width: 100%;
+  height: 56px;
+  object-fit: cover;
+  outline: 1px solid rgba(255, 255, 255, 0.10);
+  outline-offset: -1px;
+}
+
+.thumb span {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding: 2px 1px;
+  background: rgba(8, 3, 14, 0.85);
+  color: var(--gold);
+}
+
+/* Layout picker: kartu dengan tilt 3D saat hover (preserve-3d). */
+#layoutPicker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  perspective: 700px;
+}
+
+.pick {
+  border-radius: 10px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition-property: transform, box-shadow, background-color, border-color;
+  transition-duration: 250ms;
+  transition-timing-function: var(--ease);
+}
+
+.pick:hover:not(.active) {
+  transform: perspective(600px) rotateX(-6deg) rotateY(8deg) translateZ(4px);
+  box-shadow: var(--shadow-2);
+}
+
+.pick.active {
+  border-color: var(--gold);
+  background: linear-gradient(135deg, rgba(255, 201, 77, 0.22), rgba(255, 46, 136, 0.16));
+  box-shadow: 0 0 0 1px var(--gold), var(--shadow-1);
+  transform: perspective(600px) rotateX(-3deg) rotateY(4deg);
+}
+
+/* Grade: swatch gradien + nama. */
+#gradePicker {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.swatch {
+  padding: 0;
+  min-height: 44px;
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.swatch span {
+  position: absolute;
+  inset: auto 0 0 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+  padding: 3px 1px;
+  background: rgba(8, 3, 14, 0.72);
+  color: #fff;
+}
+
+.swatch.active {
+  box-shadow: 0 0 0 2px var(--gold), var(--shadow-1);
+}
+
+.swatch:active { transform: scale(0.96); }
+
+.row { display: flex; gap: 8px; }
+.row button { flex: 1; }
+
+#panelInfo {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------------- preview */
+.stage-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#stage {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 16px;
+  background: #000;
+  outline: 1px solid rgba(255, 255, 255, 0.10);
+  outline-offset: -1px;
+  box-shadow: var(--shadow-2);
+  cursor: grab;
+  touch-action: none;
+}
+
+#stage:active { cursor: grabbing; }
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+footer {
+  padding: 10px 20px 14px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* Mode shot: sembunyikan chrome editor, kanvas penuh. */
+body[data-shot="cover"] header,
+body[data-shot="cover"] .controls,
+body[data-shot="cover"] footer,
+body[data-shot="cover"] .hint { display: none; }
+
+body[data-shot="cover"] main { padding: 0; }
+body[data-shot="cover"] .stage-wrap { gap: 0; }
+body[data-shot="cover"] #stage {
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  cursor: default;
+}
+
+@media (max-width: 900px) {
+  main { flex-direction: column; }
+  .controls { width: 100%; }
+}

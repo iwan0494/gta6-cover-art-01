@@ -1,35 +1,74 @@
-// Neon Coast Cover Studio — screenshot scenes (?shot=cover | ?shot=editor).
-// Reads the query string and applies a scene to the editor state so the
-// entry screenshots are taken from the real running app, not composited.
-import { GRADES } from './cover.js';
+// shots.js — mode ?shot= untuk screenshot + gate.
+//   ?shot=cover  — cover penuh tanpa chrome editor (dipakai screenshot
+//                  1, 3, 4). Param: layout, grade, w, h.
+//   ?shot=editor — editor lengkap dengan foto dimuat (screenshot 2).
+//   tanpa param  — editor biasa.
+// Sinyal siap: window.__shotReady = true, body[data-shot-ready="1"],
+// dan document.title = "shot-ready". Font ditunggu via
+// document.fonts.ready dengan fallback timeout 1500 ms — shot tidak
+// boleh menggantung bila font lambat.
 
-export function readShotParams() {
-  const q = new URLSearchParams(location.search);
-  return {
-    shot: q.get('shot') || '',
-    layout: q.get('layout') || '',
-    grade: q.get('grade') || '',
-    title: q.get('title') || '',
-    subtitle: q.get('sub') || '',
-    photo: q.get('photo') || 'boulevard',
-  };
+import { renderCover, panelCount, defaultPanels } from './cover.js';
+import { initEditor, loadSampleImages } from './editor.js';
+
+const params = new URLSearchParams(location.search);
+const mode = params.get('shot') || 'editor';
+
+function markReady() {
+  window.__shotReady = true;
+  document.body.setAttribute('data-shot-ready', '1');
+  document.title = 'shot-ready';
 }
 
-export function applyShotParams(state, params) {
-  if (params.layout) state.layout = params.layout;
-  if (params.grade && GRADES[params.grade]) state.grade = params.grade;
-  if (params.title) state.title = params.title;
-  if (params.subtitle) state.subtitle = params.subtitle;
-  return params.shot;
+async function waitFonts() {
+  try {
+    await Promise.race([
+      document.fonts.ready,
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]);
+  } catch (_) {
+    // Font gagal dimuat — lanjut dengan fallback, jangan gantung.
+  }
 }
 
-// In cover mode the preview canvas fills the whole window so a headless
-// screenshot of the page IS the exported cover at window size.
-export function sizePreviewForShot(preview, shot) {
-  if (shot !== 'cover') return;
-  preview.width = Math.round(innerWidth * devicePixelRatio);
-  preview.height = Math.round(innerHeight * devicePixelRatio);
-  preview.style.width = '100vw';
-  preview.style.height = '100vh';
-  preview.style.maxHeight = 'none';
+async function runCoverShot() {
+  document.body.setAttribute('data-shot', 'cover');
+  const layout = params.get('layout') || 'keyart';
+  const grade = params.get('grade') || 'sunset';
+  const w = parseInt(params.get('w') || '1280', 10);
+  const h = parseInt(params.get('h') || '720', 10);
+  const canvas = document.getElementById('stage');
+  canvas.width = w;
+  canvas.height = h;
+  // Sembunyikan kontrol editor dari layout (CSS sudah menanganinya
+  // lewat body[data-shot="cover"], ini pengaman tambahan).
+  const images = await loadSampleImages();
+  await waitFonts();
+  const panels = defaultPanels(layout, 7);
+  renderCover(canvas.getContext('2d'), w, h, {
+    layout, grade,
+    title: 'NEON COAST',
+    subtitle: 'Paid in Sunsets',
+    panels,
+    images,
+  });
+  markReady();
+}
+
+async function runEditorShot() {
+  await initEditor();
+  await waitFonts();
+  markReady();
+}
+
+if (mode === 'cover') {
+  runCoverShot().catch((err) => {
+    console.error('cover shot failed', err);
+    markReady();
+  });
+} else {
+  runEditorShot().catch((err) => {
+    console.error('editor shot failed', err);
+    markReady();
+  });
 }
