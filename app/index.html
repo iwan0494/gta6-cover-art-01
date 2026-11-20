@@ -3,91 +3,65 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Neon Coast Cover Studio — GTA 6 Cover Art</title>
-<style>
-  /* Font lokal (SIL OFL 1.1, lihat fonts/OFL.txt). */
-  @font-face {
-    font-family: "Anton";
-    src: url("fonts/Anton-Regular.ttf") format("truetype");
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-  }
-  @font-face {
-    font-family: "Pacifico";
-    src: url("fonts/Pacifico-Regular.ttf") format("truetype");
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-  }
-</style>
+<title>Neon Coast Cover Studio — GTA 6 cover art from any photo</title>
+<meta name="description" content="Turn any photo into multi-panel GTA 6-style cover art: face-aware crops, chrome 3D title, poster furniture, PNG export in 3 sizes. Works offline.">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="app">
-  <header>
+<div id="app">
+  <header class="topbar">
     <div class="brand">
-      <h1>NEON COAST</h1>
-      <p>Cover Studio — Paid in Sunsets</p>
+      <span class="brand-title">NEON COAST</span>
+      <span class="brand-sub">Cover Studio — Paid in Sunsets</span>
     </div>
-    <div class="spacer"></div>
-    <button id="undoBtn" type="button" disabled>↩ Undo</button>
-    <button id="redoBtn" type="button" disabled>↪ Redo</button>
-    <button id="exportBtn" class="primary" type="button">⬇ Ekspor 3 PNG</button>
+    <div class="top-actions">
+      <button id="undoBtn" class="ghost" type="button">↩ Undo</button>
+      <button id="redoBtn" class="ghost" type="button">↪ Redo</button>
+      <button id="exportBtn" class="primary" type="button">⬇ Ekspor 3 PNG</button>
+    </div>
   </header>
 
-  <main>
+  <div class="workbench">
     <aside class="controls">
-      <section>
+      <section class="panel">
         <h2>Foto</h2>
-        <div id="photoStrip"></div>
-        <div class="row" style="margin-top: 8px">
-          <button id="uploadBtn" type="button">＋ Upload foto</button>
-          <input id="uploadInput" type="file" accept="image/*" hidden>
-        </div>
-        <p id="panelInfo">Pilih panel di kanvas untuk mengeditnya.</p>
+        <div id="photoRow" class="thumbs"></div>
+        <button id="uploadBtn" class="upload" type="button">+ Upload foto</button>
+        <p id="panelInfo" class="info">Panel 1 — Close-up wajah</p>
+        <p id="guardNote" class="guard">5 wajah, masing-masing 1x</p>
       </section>
 
-      <section>
+      <section class="panel">
         <h2>Layout</h2>
-        <div id="layoutPicker"></div>
+        <div id="layoutRow" class="chips"></div>
       </section>
 
-      <section>
+      <section class="panel">
         <h2>Grade</h2>
-        <div id="gradePicker"></div>
+        <div id="gradeRow" class="swatches"></div>
       </section>
 
-      <section>
+      <section class="panel">
         <h2>Judul</h2>
-        <label for="titleInput">Judul cover</label>
-        <input id="titleInput" type="text" value="NEON COAST" maxlength="24">
-        <label for="subtitleInput">Subjudul neon</label>
-        <input id="subtitleInput" type="text" value="Paid in Sunsets" maxlength="40">
-      </section>
-
-      <section>
-        <h2>Panel terpilih</h2>
-        <div class="row">
-          <button id="shotBtn" type="button">Ganti shot</button>
-          <button id="photoBtn" type="button">Ganti foto</button>
-        </div>
-        <label for="zoomSlider">Zoom panel</label>
-        <input id="zoomSlider" type="range" min="1" max="2.5" step="0.05" value="1">
-        <div class="row" style="margin-top: 8px">
-          <button id="shuffleBtn" type="button">🎲 Acak cast</button>
-        </div>
+        <label class="field"><span>Judul cover</span>
+          <input id="titleInput" type="text" maxlength="18" value="NEON COAST">
+        </label>
+        <label class="field"><span>Subjudul</span>
+          <input id="subInput" type="text" maxlength="40" value="Paid in Sunsets">
+        </label>
       </section>
     </aside>
 
-    <div class="stage-wrap">
-      <canvas id="stage" width="1280" height="720"></canvas>
-      <p class="hint">Klik panel untuk memilih · seret untuk menggeser crop · semua foto contoh bebas lisensi (CC0 / picsum) · bekerja offline, tanpa server.</p>
-    </div>
-  </main>
-
-  <footer>Neon Coast Cover Studio — fan-made cover tool. Bukan produk resmi Rockstar Games / GTA. Font Anton &amp; Pacifico berlisensi SIL OFL 1.1.</footer>
+    <main class="stage-wrap">
+      <div id="stage" class="stage">
+        <canvas id="coverCanvas"></canvas>
+        <div id="selection" class="selection" style="display:none"></div>
+      </div>
+      <p class="hint">Klik panel untuk memilih · seret untuk menggeser crop · scroll untuk zoom · semua foto contoh bebas lisensi (CC0 / picsum) · bekerja offline, tanpa server.</p>
+    </main>
+  </div>
 </div>
+<canvas id="shotCanvas" style="display:none"></canvas>
 <script type="module" src="src/shots.js"></script>
 </body>
 </html>

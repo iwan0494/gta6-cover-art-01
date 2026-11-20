@@ -1,105 +1,96 @@
-// cover.js — renderer cover 2D di canvas.
-// Key Art: key art film crime-epic berbingkai, BUKAN grid foto polos.
-// - Hero close-up wajah POP-OUT: digambar miring -1.5deg, membesar
-//   melewati batas grid, shadow berlapis, bingkai emas.
-// - Panel inked/banded: outline tinta tebal + stroke putih dalam +
-//   pita warna grade + overlay halftone — terbaca sebagai poster art.
-// - Judul chrome 3D di atas halftone title block (lihat poster.js).
-// - Satu wajah tidak pernah muncul dua kali (faces.dealCast).
-// - 9 grade: gradient-map wash + radial sky glow + grain + vignette.
+// cover.js — canvas renderer for the key-art cover.
+// Layouts are fractions of the canvas, so one layout renders at 1080x1080,
+// 1080x1350 and 1920x1080 alike. Each layout owns its title band, ribbon and
+// bottom strip, so no panel ever covers the title. Panels are inked and banded
+// like poster art: thick ink frame, gold inner rule, halftone dust, layered
+// drop shadow. Face shots are cropped with faceSafeCrop, so a face always
+// fits its panel whole — never cut at the neck.
 
-import { photoById, shotById, fitRectToAspect, dealCast, HERO_PHOTO_ID, uploadCrop, faceCentre, shotHasFace, fittedStaysFaceless, pickFacelessShot, pickFacelessShotAny } from './faces.js';
-import {
-  drawChromeTitle, drawNeonScript, drawRoleTag, drawQuoteBar,
-  drawRibbon, drawBilling, drawSeal, drawBarcode,
-  drawHalftoneBlock, halftonePattern,
-} from './poster.js';
+import { SAMPLES, sampleById, shotShowsFace, fitToAspect, faceSafeCrop } from "./faces.js";
+import { chromeTitle, scriptSubtitle, roleTag, ribbon, seal, barcode, billing, stars, halftone, TITLE, SUBTITLE, QUOTE, RIBBON_TEXT, BILLING } from "./poster.js";
 
-// ------------------------------------------------------------------- grade
-// bg: warna dasar kanvas. tint: wash warna (dipakai soft-light).
-// accent: pita panel + tag + seal. glow: warna radial sky glow.
 export const GRADES = [
-  { id: 'sunset',  name: 'Sunset',      bg: '#2a0a2e', tint: 'rgba(255,94,60,0.55)',  accent: '#ffc94d', glow: 'rgba(255,110,80,0.55)' },
-  { id: 'neon',    name: 'Neon Night',  bg: '#0a0618', tint: 'rgba(255,46,136,0.50)', accent: '#ff2e88', glow: 'rgba(255,46,136,0.45)' },
-  { id: 'teal',    name: 'Teal Pink',   bg: '#062a2a', tint: 'rgba(34,230,255,0.45)', accent: '#22e6ff', glow: 'rgba(34,230,255,0.40)' },
-  { id: 'gold',    name: 'Golden Hour', bg: '#2e1c05', tint: 'rgba(255,201,77,0.55)',  accent: '#ffd97a', glow: 'rgba(255,180,60,0.55)' },
-  { id: 'noir',    name: 'Noir',        bg: '#0c0c10', tint: 'rgba(120,120,140,0.40)', accent: '#e8e8f0', glow: 'rgba(150,150,180,0.30)' },
-  { id: 'vice',    name: 'Vice Violet', bg: '#1c0a33', tint: 'rgba(150,80,255,0.50)',  accent: '#b678ff', glow: 'rgba(150,80,255,0.45)' },
-  { id: 'blood',   name: 'Blood Orange',bg: '#2e0a08', tint: 'rgba(255,60,20,0.55)',   accent: '#ff6a3d', glow: 'rgba(255,80,30,0.50)' },
-  { id: 'mint',    name: 'Miami Mint',  bg: '#06231f', tint: 'rgba(60,255,190,0.42)',  accent: '#3cffb2', glow: 'rgba(60,255,190,0.38)' },
-  { id: 'chrome',  name: 'Chrome Mono', bg: '#14161c', tint: 'rgba(200,210,230,0.38)', accent: '#dfe6f2', glow: 'rgba(210,220,240,0.32)' },
+  { id: "sunset", name: "Sunset", tint: "rgba(232,74,47,0.28)", sky: "rgba(255,170,60,0.55)", warm: 1 },
+  { id: "neon", name: "Neon Night", tint: "rgba(255,46,136,0.30)", sky: "rgba(120,60,255,0.50)", warm: 0 },
+  { id: "teal", name: "Teal Pink", tint: "rgba(46,196,182,0.26)", sky: "rgba(255,120,180,0.40)", warm: 0 },
+  { id: "gold", name: "Golden Hour", tint: "rgba(242,193,78,0.30)", sky: "rgba(255,210,110,0.60)", warm: 1 },
+  { id: "noir", name: "Noir", tint: "rgba(10,10,20,0.45)", sky: "rgba(200,200,220,0.18)", warm: 0 },
+  { id: "violet", name: "Vice Violet", tint: "rgba(140,60,255,0.32)", sky: "rgba(255,46,136,0.45)", warm: 0 },
+  { id: "blood", name: "Blood Orange", tint: "rgba(200,30,10,0.34)", sky: "rgba(255,120,40,0.55)", warm: 1 },
+  { id: "miami", name: "Miami Mint", tint: "rgba(60,220,170,0.24)", sky: "rgba(140,255,220,0.45)", warm: 0 },
+  { id: "chrome", name: "Chrome Mono", tint: "rgba(120,130,150,0.30)", sky: "rgba(255,255,255,0.30)", warm: 0 },
 ];
 
 export function gradeById(id) {
   return GRADES.find((g) => g.id === id) || GRADES[0];
 }
 
-// ------------------------------------------------------------------ layout
-// Semua rect dalam fraksi 0..1 dari kanvas. `hero: true` = slot hero.
-// `title`: zona judul { cx (fraksi W), bandY, bandH, size (fraksi H) }.
+// ---- layouts ----------------------------------------------------------------
+// kind "face" wants a face shot, "detail" a faceless detail shot. band/ribbonY/
+// stripY are fractions of the canvas height; heroFirst draws the hero under
+// the title band (full-bleed background) instead of over it.
+const BAND_KEY = { x: 0.055, y: 0.475, w: 0.89, h: 0.155 };
 export const LAYOUTS = [
   {
-    id: 'keyart', name: 'Key Art',
-    rects: [
-      { x: 0.02, y: 0.10, w: 0.17, h: 0.34 },
-      { x: 0.21, y: 0.06, w: 0.44, h: 0.40, hero: true },
-      { x: 0.67, y: 0.10, w: 0.15, h: 0.34 },
-      { x: 0.84, y: 0.10, w: 0.14, h: 0.34 },
-      { x: 0.02, y: 0.70, w: 0.31, h: 0.22 },
-      { x: 0.345, y: 0.70, w: 0.31, h: 0.22 },
-      { x: 0.67, y: 0.70, w: 0.31, h: 0.22 },
+    id: "key", name: "Key Art", band: BAND_KEY, ribbonY: 0.642, stripY: 0.94,
+    slots: [
+      { role: "THE ARTIST", kind: "face", rect: { x: 0.020, y: 0.075, w: 0.170, h: 0.385 } },
+      { role: "THE LOOKOUT", kind: "face", hero: true, tilt: -1.5, rect: { x: 0.205, y: 0.055, w: 0.480, h: 0.395 } },
+      { role: "THE CAPTAIN", kind: "face", rect: { x: 0.700, y: 0.075, w: 0.145, h: 0.385 } },
+      { role: "THE SINGER", kind: "face", rect: { x: 0.860, y: 0.075, w: 0.125, h: 0.385 } },
+      { role: "THE DRIVER", kind: "face", rect: { x: 0.020, y: 0.700, w: 0.305, h: 0.225 } },
+      { role: "THE CAPTAIN", kind: "detail", rect: { x: 0.345, y: 0.700, w: 0.310, h: 0.225 } },
+      { role: "THE DRIVER", kind: "detail", rect: { x: 0.675, y: 0.700, w: 0.310, h: 0.225 } },
     ],
-    title: { cx: 0.5, bandY: 0.475, bandH: 0.155, size: 0.115 },
   },
   {
-    id: 'popout', name: 'Hero Pop-Out',
-    rects: [
-      { x: 0.02, y: 0.06, w: 0.58, h: 0.72, hero: true },
-      { x: 0.62, y: 0.06, w: 0.36, h: 0.225 },
-      { x: 0.62, y: 0.305, w: 0.36, h: 0.225 },
-      { x: 0.62, y: 0.55, w: 0.36, h: 0.23 },
+    id: "pop", name: "Hero Pop-Out", band: { x: 0.015, y: 0.735, w: 0.97, h: 0.14 }, ribbonY: 0.885, stripY: 0.94,
+    slots: [
+      { role: "THE LOOKOUT", kind: "face", hero: true, tilt: -1.5, rect: { x: 0.015, y: 0.055, w: 0.545, h: 0.665 } },
+      { role: "THE ARTIST", kind: "face", rect: { x: 0.580, y: 0.055, w: 0.405, h: 0.200 } },
+      { role: "THE CAPTAIN", kind: "face", rect: { x: 0.580, y: 0.270, w: 0.405, h: 0.200 } },
+      { role: "THE SINGER", kind: "face", rect: { x: 0.580, y: 0.485, w: 0.405, h: 0.200 } },
     ],
-    title: { cx: 0.5, bandY: 0.795, bandH: 0.135, size: 0.085, ribbon: 'top' },
   },
   {
-    id: 'hero3', name: 'Hero+3',
-    rects: [
-      { x: 0.02, y: 0.06, w: 0.96, h: 0.40, hero: true },
-      { x: 0.02, y: 0.645, w: 0.31, h: 0.25 },
-      { x: 0.345, y: 0.645, w: 0.31, h: 0.25 },
-      { x: 0.67, y: 0.645, w: 0.31, h: 0.25 },
+    id: "hero3", name: "Hero+3", band: BAND_KEY, ribbonY: 0.642, stripY: 0.94,
+    slots: [
+      { role: "THE LOOKOUT", kind: "face", hero: true, tilt: -1.0, rect: { x: 0.020, y: 0.060, w: 0.960, h: 0.400 } },
+      { role: "THE DRIVER", kind: "face", rect: { x: 0.020, y: 0.700, w: 0.305, h: 0.225 } },
+      { role: "THE ARTIST", kind: "face", rect: { x: 0.345, y: 0.700, w: 0.310, h: 0.225 } },
+      { role: "THE SINGER", kind: "face", rect: { x: 0.675, y: 0.700, w: 0.310, h: 0.225 } },
     ],
-    title: { cx: 0.5, bandY: 0.465, bandH: 0.125, size: 0.10 },
   },
   {
-    id: 'four', name: 'Four Panel',
-    rects: [
-      { x: 0.02, y: 0.06, w: 0.47, h: 0.36 },
-      { x: 0.51, y: 0.06, w: 0.47, h: 0.36 },
-      { x: 0.02, y: 0.625, w: 0.47, h: 0.30 },
-      { x: 0.51, y: 0.625, w: 0.47, h: 0.30 },
+    id: "four", name: "Four Panel", band: { x: 0.020, y: 0.660, w: 0.96, h: 0.140 }, ribbonY: 0.815, stripY: 0.905,
+    slots: [
+      { role: "THE LOOKOUT", kind: "face", hero: true, rect: { x: 0.020, y: 0.060, w: 0.475, h: 0.285 } },
+      { role: "THE DRIVER", kind: "face", rect: { x: 0.505, y: 0.060, w: 0.475, h: 0.285 } },
+      { role: "THE CAPTAIN", kind: "face", rect: { x: 0.020, y: 0.360, w: 0.475, h: 0.285 } },
+      { role: "THE SINGER", kind: "face", rect: { x: 0.505, y: 0.360, w: 0.475, h: 0.285 } },
     ],
-    title: { cx: 0.5, bandY: 0.435, bandH: 0.13, size: 0.10 },
   },
   {
-    id: 'full', name: 'Full-Bleed',
-    rects: [{ x: 0, y: 0, w: 1, h: 1, hero: true }],
-    title: { cx: 0.5, bandY: 0.68, bandH: 0.17, size: 0.115 },
+    id: "bleed", name: "Full-Bleed", band: BAND_KEY, ribbonY: 0.642, stripY: 0.94, heroFirst: true,
+    slots: [
+      { role: "THE LOOKOUT", kind: "face", hero: true, rect: { x: 0.000, y: 0.000, w: 1.000, h: 0.920 } },
+      { role: "THE DRIVER", kind: "face", rect: { x: 0.030, y: 0.700, w: 0.220, h: 0.200 } },
+      { role: "THE SINGER", kind: "face", rect: { x: 0.750, y: 0.700, w: 0.220, h: 0.200 } },
+    ],
   },
   {
-    id: 'nine', name: 'Nine Grid',
-    rects: [
-      { x: 0.02, y: 0.06, w: 0.31, h: 0.27 },
-      { x: 0.345, y: 0.06, w: 0.31, h: 0.27, hero: true },
-      { x: 0.67, y: 0.06, w: 0.31, h: 0.27 },
-      { x: 0.02, y: 0.345, w: 0.31, h: 0.27 },
-      { x: 0.345, y: 0.345, w: 0.31, h: 0.27 },
-      { x: 0.67, y: 0.345, w: 0.31, h: 0.27 },
-      { x: 0.02, y: 0.63, w: 0.31, h: 0.27 },
-      { x: 0.345, y: 0.63, w: 0.31, h: 0.27 },
-      { x: 0.67, y: 0.63, w: 0.31, h: 0.27 },
+    id: "nine", name: "Nine Grid", band: { x: 0.020, y: 0.065, w: 0.96, h: 0.140 }, ribbonY: null, stripY: 0.94,
+    slots: [
+      { role: "THE DRIVER", kind: "face", rect: { x: 0.020, y: 0.220, w: 0.305, h: 0.235 } },
+      { role: "THE LOOKOUT", kind: "face", hero: true, rect: { x: 0.345, y: 0.220, w: 0.310, h: 0.235 } },
+      { role: "THE ARTIST", kind: "face", rect: { x: 0.675, y: 0.220, w: 0.305, h: 0.235 } },
+      { role: "THE CAPTAIN", kind: "face", rect: { x: 0.020, y: 0.470, w: 0.305, h: 0.235 } },
+      { role: "THE LOOKOUT", kind: "detail", rect: { x: 0.345, y: 0.470, w: 0.310, h: 0.235 } },
+      { role: "THE SINGER", kind: "face", rect: { x: 0.675, y: 0.470, w: 0.305, h: 0.235 } },
+      { role: "THE DRIVER", kind: "detail", rect: { x: 0.020, y: 0.720, w: 0.305, h: 0.205 } },
+      { role: "THE CAPTAIN", kind: "detail", rect: { x: 0.345, y: 0.720, w: 0.310, h: 0.205 } },
+      { role: "THE ARTIST", kind: "detail", rect: { x: 0.675, y: 0.720, w: 0.305, h: 0.205 } },
     ],
-    title: { cx: 0.5, bandY: 0.40, bandH: 0.14, size: 0.095 },
   },
 ];
 
@@ -107,357 +98,288 @@ export function layoutById(id) {
   return LAYOUTS.find((l) => l.id === id) || LAYOUTS[0];
 }
 
-// Rect panel dalam piksel.
-export function panelRects(layoutId, W, H) {
-  const lay = layoutById(layoutId);
-  return lay.rects.map((r) => ({
-    x: r.x * W, y: r.y * H, w: r.w * W, h: r.h * H, hero: !!r.hero,
-  }));
-}
-
-export function panelCount(layoutId) {
-  return layoutById(layoutId).rects.length;
-}
-
-// Panel default: cast dari dealCast, lalu HERO dipastikan berisi
-// close-up wajah portrait — dicari lewat indeks hero di layout,
-// bukan diasumsikan di posisi 0.
-export function defaultPanels(layoutId, seed = 7) {
-  const n = panelCount(layoutId);
-  const cast = dealCast(n, seed);
-  const rects = layoutById(layoutId).rects;
-  const heroIdx = rects.findIndex((r) => r.hero);
-  if (heroIdx >= 0) {
-    const portraitIdx = cast.findIndex((c) => c.photo === HERO_PHOTO_ID);
-    if (portraitIdx >= 0 && portraitIdx !== heroIdx) {
-      const tmp = cast[heroIdx];
-      cast[heroIdx] = cast[portraitIdx];
-      cast[portraitIdx] = tmp;
+// ---- panel assignment with the face guard ---------------------------------
+// Every face appears at most once per cover; repeats only via faceless details.
+export function assignPanels(layoutId, photos = SAMPLES) {
+  const layout = layoutById(layoutId);
+  const usedPairs = new Set();
+  const usedFaces = new Set();
+  const panels = [];
+  let cursor = 0;
+  for (const slot of layout.slots) {
+    let pick = null;
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[(cursor + i) % photos.length];
+      const byRole = photo.role === slot.role;
+      for (const shot of photo.shots) {
+        const key = photo.id + "/" + shot.id;
+        if (usedPairs.has(key)) continue;
+        const shows = shotShowsFace(photo, shot);
+        if (slot.kind === "face" && !shows) continue;
+        if (slot.kind === "detail" && shows) continue;
+        if (shows && usedFaces.has(photo.id)) continue;
+        if (!pick || (byRole && pick.photo.role !== slot.role)) pick = { photo, shot };
+        if (byRole && shows) break;
+      }
+      if (pick && pick.photo.role === slot.role) break;
     }
-    cast[heroIdx] = { photo: HERO_PHOTO_ID, shot: 'face' };
-  }
-  const panels = cast.map((c) => ({ photo: c.photo, shot: c.shot, zoom: 1, dx: 0, dy: 0 }));
-  // NOTE: guard faceless TIDAK di sini — aspek panel yang benar hanya
-  // diketahui saat render (rect piksel, tergantung ukuran kanvas).
-  // Penegakannya ada di guardPanelShot(), dipakai renderCover per panel.
-  // ANTI-ADJACENCY: dua panel bersebelahan (dalam urutan layout) tidak
-  // boleh memakai foto yang sama — walau satu faceless, tetap terbaca
-  // sebagai orang yang sama dua kali. Tukar dengan panel non-tetangga.
-  for (let i = 1; i < panels.length; i++) {
-    if (panels[i].photo === panels[i - 1].photo) {
-      for (let j = i + 1; j < panels.length; j++) {
-        // Setelah swap: posisi i diisi foto lama j, posisi j diisi foto lama i.
-        // Cek keempat tetangga baru (tetangga dalam yang bertukar selalu beda
-        // foto, karena foto i dan j berbeda).
-        const newIok = panels[j].photo !== panels[i - 1].photo
-          && (i + 1 === j || panels[j].photo !== panels[i + 1].photo);
-        const newJok = (j - 1 === i || panels[i].photo !== panels[j - 1].photo)
-          && (j + 1 >= panels.length || panels[i].photo !== panels[j + 1].photo);
-        if (newIok && newJok) {
-          const tmp = panels[i];
-          panels[i] = panels[j];
-          panels[j] = tmp;
-          break;
+    if (!pick) {
+      outer: for (const photo of photos) {
+        for (const shot of photo.shots) {
+          if (!usedPairs.has(photo.id + "/" + shot.id) && !shotShowsFace(photo, shot)) {
+            pick = { photo, shot };
+            break outer;
+          }
         }
       }
+    }
+    if (pick) {
+      usedPairs.add(pick.photo.id + "/" + pick.shot.id);
+      if (shotShowsFace(pick.photo, pick.shot)) usedFaces.add(pick.photo.id);
+      panels.push({ photo: pick.photo.id, shot: pick.shot.id, role: slot.role, kind: slot.kind, hero: !!slot.hero, tilt: slot.tilt || 0, zoom: 1, ox: 0, oy: 0 });
+      cursor++;
     }
   }
   return panels;
 }
 
-// ------------------------------------------------------------------ gambar
-// Gambar foto ke dalam rect panel mengikuti shot (face-aware):
-// crop disesuaikan ke aspek panel di sekitar pusat shot, lalu zoom
-// (skala di sekitar pusat) + geser dx/dy (fraksi dari rect crop).
-export function drawPhotoInto(ctx, img, rect, shotRect, zoom = 1, dx = 0, dy = 0) {
-  if (!img || !img.naturalWidth) return;
-  const aspect = rect.w / rect.h;
-  let src = fitRectToAspect(shotRect, aspect);
-  // Zoom: perkecil rect sumber di sekitar pusatnya.
-  const zw = src.w / zoom;
-  const zh = src.h / zoom;
-  let sx = src.x + (src.w - zw) / 2 + dx * src.w;
-  let sy = src.y + (src.h - zh) / 2 + dy * src.h;
-  sx = Math.max(0, Math.min(1 - zw, sx));
-  sy = Math.max(0, Math.min(1 - zh, sy));
-  ctx.drawImage(
-    img,
-    sx * img.naturalWidth, sy * img.naturalHeight,
-    zw * img.naturalWidth, zh * img.naturalHeight,
-    rect.x, rect.y, rect.w, rect.h,
-  );
+// Count face appearances per photo id — the render guard test uses this.
+export function faceCounts(panels) {
+  const counts = {};
+  for (const p of panels) {
+    const photo = sampleById(p.photo);
+    const shot = photo.shots.find((s) => s.id === p.shot);
+    if (shot && shotShowsFace(photo, shot)) counts[p.photo] = (counts[p.photo] || 0) + 1;
+  }
+  return counts;
 }
 
-// Wash grade: overlay warna + soft-light supaya foto menyatu dengan grade.
-export function gradeWash(ctx, rect, grade) {
-  ctx.save();
-  ctx.globalCompositeOperation = 'soft-light';
-  ctx.globalAlpha = 0.85;
-  ctx.fillStyle = grade.tint;
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.restore();
-  // Kilau langit radial di sudut atas panel.
-  const g = ctx.createRadialGradient(
-    rect.x + rect.w * 0.7, rect.y + rect.h * 0.08, 0,
-    rect.x + rect.w * 0.7, rect.y + rect.h * 0.08, rect.w * 0.9,
-  );
-  g.addColorStop(0, grade.glow);
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.save();
-  ctx.globalCompositeOperation = 'screen';
-  ctx.fillStyle = g;
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.restore();
-}
-
-// Bingkai panel ala poster art: outline tinta tebal, stroke putih dalam,
-// pita warna grade di bawah, overlay halftone tipis, outline 1px di tepi.
-export function framePanel(ctx, rect, grade, isHero = false) {
-  const ink = Math.max(3, rect.w * 0.012);
-  ctx.save();
-  // Outline tinta.
-  ctx.strokeStyle = '#0d0718';
-  ctx.lineWidth = ink;
-  ctx.strokeRect(rect.x + ink / 2, rect.y + ink / 2, rect.w - ink, rect.h - ink);
-  // Stroke putih dalam (jarak = tinta + 2px).
-  ctx.strokeStyle = isHero ? grade.accent : 'rgba(255,255,255,0.9)';
-  ctx.lineWidth = isHero ? Math.max(2.5, rect.w * 0.008) : 1.5;
-  const inner = ink + 2;
-  ctx.strokeRect(rect.x + inner, rect.y + inner, rect.w - inner * 2, rect.h - inner * 2);
-  // Pita warna grade di tepi bawah panel.
-  const bandH = Math.max(4, rect.h * 0.035);
-  ctx.fillStyle = grade.accent;
-  ctx.fillRect(rect.x + ink, rect.y + rect.h - ink - bandH, rect.w - ink * 2, bandH);
-  // Overlay halftone tipis di atas foto.
-  const pat = halftonePattern(ctx, 12, 1.0, '#000000', 0.05);
-  ctx.fillStyle = pat;
-  ctx.fillRect(rect.x + ink, rect.y + ink, rect.w - ink * 2, rect.h - ink * 2);
-  // Outline 1px low-opacity di tepi gambar (kedalaman konsisten).
-  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
-  ctx.lineWidth = 1;
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  ctx.restore();
-}
-
-// Chip callout kecil di sudut hero ("SUNSET EDITION").
-function drawChip(ctx, text, x, y, size, accent) {
-  ctx.save();
-  ctx.font = `700 ${size}px Anton, 'Arial Black', sans-serif`;
-  const w = ctx.measureText(text).width + size * 1.6;
-  const h = size * 1.9;
-  ctx.fillStyle = accent;
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + w, y);
-  ctx.lineTo(x + w - size * 0.5, y + h);
-  ctx.lineTo(x, y + h);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = '#160412';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, x + w / 2, y + h / 2 + 1);
-  ctx.restore();
-  return w;
-}
-
-// Grain film: titik acak tipis di seluruh kanvas.
-function grain(ctx, W, H, seed = 42) {
-  let s = seed;
-  const rnd = () => {
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
-    return s / 0x7fffffff;
+export function defaultState() {
+  return {
+    title: TITLE,
+    subtitle: SUBTITLE,
+    layout: "key",
+    grade: "sunset",
+    panels: assignPanels("key"),
   };
-  ctx.save();
-  ctx.globalAlpha = 0.05;
-  ctx.fillStyle = '#ffffff';
-  for (let i = 0; i < Math.floor((W * H) / 900); i++) {
-    ctx.fillRect(rnd() * W, rnd() * H, 1.4, 1.4);
+}
+
+// ---- grading ---------------------------------------------------------------
+let grainCanvas = null;
+function grainPattern() {
+  if (!grainCanvas) {
+    grainCanvas = document.createElement("canvas");
+    grainCanvas.width = 160;
+    grainCanvas.height = 160;
+    const g = grainCanvas.getContext("2d");
+    const img = g.createImageData(160, 160);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = 118 + Math.floor(Math.random() * 20);
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
   }
-  ctx.fillStyle = '#000000';
-  for (let i = 0; i < Math.floor((W * H) / 1400); i++) {
-    ctx.fillRect(rnd() * W, rnd() * H, 1.4, 1.4);
-  }
-  ctx.restore();
+  return document.createElement("canvas").getContext("2d").createPattern(grainCanvas, "repeat");
 }
 
-function vignette(ctx, W, H) {
-  const g = ctx.createRadialGradient(
-    W / 2, H / 2, Math.min(W, H) * 0.42,
-    W / 2, H / 2, Math.max(W, H) * 0.75,
-  );
-  g.addColorStop(0, 'rgba(0,0,0,0)');
-  g.addColorStop(1, 'rgba(5,2,10,0.55)');
-  ctx.save();
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
+function gradePhoto(ctx, img, sx, sy, sw, sh, dx, dy, dw, dh, grade) {
+  const off = document.createElement("canvas");
+  off.width = Math.max(2, Math.round(dw));
+  off.height = Math.max(2, Math.round(dh));
+  const o = off.getContext("2d");
+  o.drawImage(img, sx, sy, sw, sh, 0, 0, off.width, off.height);
+  o.globalCompositeOperation = "overlay";
+  o.fillStyle = grade.tint;
+  o.fillRect(0, 0, off.width, off.height);
+  const sky = o.createRadialGradient(off.width / 2, -off.height * 0.2, 10, off.width / 2, -off.height * 0.2, off.height * 1.1);
+  sky.addColorStop(0, grade.sky);
+  sky.addColorStop(1, "rgba(0,0,0,0)");
+  o.globalCompositeOperation = "soft-light";
+  o.fillStyle = sky;
+  o.fillRect(0, 0, off.width, off.height);
+  const v = o.createRadialGradient(off.width / 2, off.height / 2, Math.min(off.width, off.height) * 0.35, off.width / 2, off.height / 2, Math.max(off.width, off.height) * 0.75);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, "rgba(10,4,12,0.42)");
+  o.globalCompositeOperation = "source-over";
+  o.fillStyle = v;
+  o.fillRect(0, 0, off.width, off.height);
+  o.globalAlpha = 0.08;
+  o.globalCompositeOperation = "overlay";
+  o.fillStyle = grainPattern();
+  o.fillRect(0, 0, off.width, off.height);
+  o.globalAlpha = 1;
+  o.globalCompositeOperation = "source-over";
+  ctx.drawImage(off, dx, dy, dw, dh);
 }
 
-// Guard waktu-render: shot faceless harus tetap faceless setelah di-fit
-// ke ASPEK PIKSEL panel ini (rect.w / rect.h — tergantung ukuran kanvas,
-// bukan fraksi layout). Fitting bisa menarik wajah masuk lagi; bila bocor,
-// ganti ke shot faceless lain yang lolos uji fittedStaysFaceless untuk
-// aspek ini (foto sama dulu, lalu foto lain). `usedPairs` = pasangan
-// foto:shot yang sudah dipakai panel lain di render ini, supaya tidak
-// ada dua panel dengan shot yang sama.
-export function guardPanelShot(p, aspect, usedPairs) {
-  const photo = photoById(p.photo);
-  if (!photo) return { photo: p.photo, shot: p.shot };
-  const shot = shotById(photo, p.shot);
-  if (!shot || shotHasFace(photo, shot)) return { photo: p.photo, shot: p.shot };
-  if (fittedStaysFaceless(photo, shot, aspect)) return { photo: p.photo, shot: p.shot };
-  const usedShots = usedPairs
-    .filter((q) => q.photo === photo.id)
-    .map((q) => q.shot);
-  const rep = pickFacelessShot(photo, aspect, usedShots)
-    || pickFacelessShotAny(aspect, photo.id, usedPairs);
-  return rep || { photo: p.photo, shot: p.shot };
+// Source rect for a panel: crop fitted to the panel aspect, zoomed, panned.
+function sourceRect(crop, panelAspect, zoom, ox, oy) {
+  const fitted = fitToAspect(crop, panelAspect);
+  const zw = fitted.w / zoom;
+  const zh = fitted.h / zoom;
+  let cx = fitted.x + fitted.w / 2 + ox * fitted.w;
+  let cy = fitted.y + fitted.h / 2 + oy * fitted.h;
+  cx = Math.min(Math.max(cx, zw / 2), 1 - zw / 2);
+  cy = Math.min(Math.max(cy, zh / 2), 1 - zh / 2);
+  return { x: cx - zw / 2, y: cy - zh / 2, w: zw, h: zh };
 }
 
-// ------------------------------------------------------------------ render
-// state: { layout, grade, title, subtitle, panels, images }
-// images: Map id -> HTMLImageElement (foto contoh + upload).
-export function renderCover(ctx, W, H, state) {
+// ---- the cover -------------------------------------------------------------
+export function renderCover(canvas, images, state) {
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
   const grade = gradeById(state.grade);
-  const lay = layoutById(state.layout);
-  const rects = panelRects(state.layout, W, H);
-  const panels = state.panels || defaultPanels(state.layout);
+  const layout = layoutById(state.layout);
+  const u = Math.min(W, H) / 720; // layout unit
 
-  // Latar + sky glow radial.
+  // plum backdrop + faint halftone dust
+  const bg = ctx.createLinearGradient(0, 0, W, H);
+  bg.addColorStop(0, "#2a0f22");
+  bg.addColorStop(0.55, "#1b0b1e");
+  bg.addColorStop(1, "#12060f");
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+  halftone(ctx, 0, 0, W, H, 18 * u, "#000000", 0.08);
+
+  // quote bar
+  const qy = H * 0.018;
+  stars(ctx, W * 0.022, qy + 4 * u, 13 * u);
   ctx.save();
-  ctx.fillStyle = grade.bg;
-  ctx.fillRect(0, 0, W, H);
-  const sky = ctx.createRadialGradient(
-    W * 0.72, H * 0.02, 0, W * 0.72, H * 0.02, W * 0.85,
-  );
-  sky.addColorStop(0, grade.glow);
-  sky.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = sky;
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#e8d8c8";
+  ctx.font = `italic ${15 * u}px Georgia, serif`;
+  ctx.textBaseline = "top";
+  ctx.fillText(`"${QUOTE}"`, W * 0.115, qy);
+  ctx.restore();
+  ctx.save();
+  ctx.font = `${13 * u}px Anton, sans-serif`;
+  ctx.fillStyle = "#f2c14e";
+  ctx.strokeStyle = "#f2c14e";
+  ctx.lineWidth = 1.5 * u;
+  const vol = "VOL. 1";
+  const vw = ctx.measureText(vol).width + 18 * u;
+  ctx.strokeRect(W - vw - W * 0.015, qy - 2 * u, vw, 20 * u);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(vol, W - vw / 2 - W * 0.015, qy + 8 * u);
   ctx.restore();
 
-  // Quote bar atas.
-  drawQuoteBar(ctx, W * 0.02, H * 0.012, W * 0.96,
-    'The most wanted sunset in Leonida', Math.max(9, H * 0.016));
-
-  // Panel biasa dulu (hero digambar terakhir supaya menembus di atas).
-  const heroIdx = rects.findIndex((r) => r.hero);
-  const usedPairs = panels.map((q) => ({ photo: q.photo, shot: q.shot }));
-  rects.forEach((rect, i) => {
-    if (i === heroIdx) return;
-    const p = panels[i] || panels[0];
-    const resolved = guardPanelShot(p, rect.w / rect.h, usedPairs);
-    usedPairs[i] = resolved;
-    const photo = photoById(resolved.photo);
-    const shot = photo ? shotById(photo, resolved.shot) : null;
-    const img = state.images ? state.images.get(resolved.photo) : null;
-    const shotRect = shot ? shot.rect : (img ? uploadCrop() : null);
+  const drawPanel = (slot, panel) => {
+    const photo = sampleById(panel.photo);
+    const img = images[photo.id];
+    const shot = photo.shots.find((s) => s.id === panel.shot) || photo.shots[0];
+    const r = slot.rect;
+    const px = r.x * W, py = r.y * H, pw = r.w * W, ph = r.h * H;
+    const aspect = pw / ph;
+    // face shots are cropped around the measured face box so the face fits
+    // the panel whole; wide panels get a looser crop (more context, smaller
+    // face) so the strip still reads as a person, not a mouth.
+    const pad = aspect > 1.5 ? 1.2 : 0.25;
+    const crop = shotShowsFace(photo, shot) ? faceSafeCrop(photo, aspect, pad) : shot.crop;
+    ctx.save();
+    ctx.translate(px + pw / 2, py + ph / 2);
+    if (slot.tilt) ctx.rotate((slot.tilt * Math.PI) / 180);
+    ctx.translate(-pw / 2, -ph / 2);
+    // layered drop shadow (depth, not a flat card shadow)
+    ctx.shadowColor = "rgba(0,0,0,0.65)";
+    ctx.shadowBlur = 18 * u;
+    ctx.shadowOffsetY = 8 * u;
+    ctx.fillStyle = "#0d050c";
+    ctx.fillRect(-3 * u, -3 * u, pw + 6 * u, ph + 6 * u);
+    ctx.shadowColor = "transparent";
+    // photo
     ctx.save();
     ctx.beginPath();
-    ctx.rect(rect.x, rect.y, rect.w, rect.h);
+    ctx.rect(0, 0, pw, ph);
     ctx.clip();
-    if (img && shotRect) drawPhotoInto(ctx, img, rect, shotRect, p.zoom, p.dx, p.dy);
-    else { ctx.fillStyle = '#241533'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); }
-    gradeWash(ctx, rect, grade);
-    ctx.restore();
-    framePanel(ctx, rect, grade, false);
-    if (photo) {
-      drawRoleTag(ctx, photo.role, rect.x + rect.w * 0.06,
-        rect.y + rect.h * 0.14, Math.max(8, rect.w * 0.055), grade.accent);
+    if (img) {
+      const src = sourceRect(crop, aspect, panel.zoom || 1, panel.ox || 0, panel.oy || 0);
+      gradePhoto(ctx, img, src.x * img.naturalWidth, src.y * img.naturalHeight, src.w * img.naturalWidth, src.h * img.naturalHeight, 0, 0, pw, ph, grade);
+    } else {
+      ctx.fillStyle = "#3a1a30";
+      ctx.fillRect(0, 0, pw, ph);
     }
-  });
+    // faint halftone dust over the photo
+    halftone(ctx, 0, 0, pw, ph, 12 * u, "#000000", 0.05);
+    ctx.restore();
+    // ink frame: thick ink + gold inner rule + 1px pure outline on the image edge
+    ctx.lineWidth = Math.max(3, 5 * u);
+    ctx.strokeStyle = "#12060f";
+    ctx.strokeRect(-2.5 * u, -2.5 * u, pw + 5 * u, ph + 5 * u);
+    ctx.lineWidth = Math.max(1.5, 2.5 * u);
+    ctx.strokeStyle = "#f2c14e";
+    ctx.strokeRect(2 * u, 2 * u, pw - 4 * u, ph - 4 * u);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.strokeRect(0.5, 0.5, pw - 1, ph - 1);
+    // role tag, top-left, overlapping the frame
+    roleTag(ctx, 4 * u, 4 * u, panel.role, Math.max(11, 15 * u));
+    // edition chip on the hero
+    if (panel.hero) {
+      ctx.save();
+      ctx.font = `${Math.max(11, 13 * u)}px Anton, sans-serif`;
+      const label = "SUNSET EDITION";
+      const tw = ctx.measureText(label).width + 16 * u;
+      ctx.translate(pw - tw - 6 * u, 6 * u);
+      ctx.transform(1, 0, -0.06, 1, 0, 0);
+      ctx.fillStyle = "#f2c14e";
+      ctx.fillRect(0, 0, tw, 20 * u);
+      ctx.fillStyle = "#1b0b1e";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, 8 * u, 10 * u + 1);
+      ctx.restore();
+    }
+    ctx.restore();
+  };
 
-  // HERO pop-out: miring -1.5deg, membesar keluar grid, shadow berlapis.
-  if (heroIdx >= 0) {
-    const rect = rects[heroIdx];
-    const p = panels[heroIdx] || panels[0];
-    const resolved = guardPanelShot(p, rect.w / rect.h, usedPairs);
-    usedPairs[heroIdx] = resolved;
-    const photo = photoById(resolved.photo);
-    const shot = photo ? shotById(photo, resolved.shot) : null;
-    const img = state.images ? state.images.get(resolved.photo) : null;
-    const shotRect = shot ? shot.rect : (img ? uploadCrop() : null);
-    // Perbesaran keluar grid: +5% lebar, +7% tinggi.
-    const ex = { x: rect.x - rect.w * 0.025, y: rect.y - rect.h * 0.035,
-      w: rect.w * 1.05, h: rect.h * 1.07 };
-    const cx = ex.x + ex.w / 2;
-    const cy = ex.y + ex.h / 2;
+  const heroIdx = layout.slots.findIndex((s, i) => state.panels[i] && state.panels[i].hero);
+  const drawTitle = () => {
+    const band = layout.band;
+    const bx = band.x * W, by = band.y * H, bw = band.w * W, bh = band.h * H;
     ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate(-0.026); // -1.5 derajat, "tilted snapshot".
-    ctx.translate(-cx, -cy);
-    // Shadow berlapis (3 lapis, makin jauh makin pudar).
-    ctx.fillStyle = 'rgba(0,0,0,0.45)';
-    ctx.fillRect(ex.x + 6, ex.y + 12, ex.w, ex.h);
-    ctx.fillStyle = 'rgba(0,0,0,0.28)';
-    ctx.fillRect(ex.x + 12, ex.y + 22, ex.w, ex.h);
-    ctx.fillStyle = 'rgba(0,0,0,0.16)';
-    ctx.fillRect(ex.x + 18, ex.y + 34, ex.w, ex.h);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(ex.x, ex.y, ex.w, ex.h);
-    ctx.clip();
-    if (img && shotRect) drawPhotoInto(ctx, img, ex, shotRect, p.zoom, p.dx, p.dy);
-    else { ctx.fillStyle = '#241533'; ctx.fillRect(ex.x, ex.y, ex.w, ex.h); }
-    gradeWash(ctx, ex, grade);
+    ctx.fillStyle = "#160a14";
+    ctx.fillRect(bx, by, bw, bh);
+    halftone(ctx, bx, by, bw, bh, 10 * u, "#000000", 0.35);
+    ctx.lineWidth = Math.max(2, 3 * u);
+    ctx.strokeStyle = "#f2c14e";
+    ctx.strokeRect(bx, by, bw, bh);
     ctx.restore();
-    framePanel(ctx, ex, grade, true);
-    if (photo) {
-      drawRoleTag(ctx, photo.role, ex.x + ex.w * 0.05,
-        ex.y + ex.h * 0.13, Math.max(9, ex.w * 0.05), grade.accent);
+    const titlePx = Math.min(bh * 0.62, (bw * 0.92) / (state.title.length * 0.62));
+    chromeTitle(ctx, state.title, W / 2, by + bh * 0.06, titlePx, { skew: -0.03, maxWidth: bw * 0.88 });
+    scriptSubtitle(ctx, state.subtitle, W / 2, by + bh * 0.66, titlePx * 0.34);
+    if (layout.ribbonY != null) {
+      ribbon(ctx, W / 2, layout.ribbonY * H, W * 0.46, RIBBON_TEXT, Math.max(11, 15 * u));
     }
-    // Chip SUNSET EDITION di sudut kanan atas hero.
-    drawChip(ctx, 'SUNSET EDITION', ex.x + ex.w * 0.62, ex.y + ex.h * 0.045,
-      Math.max(8, ex.w * 0.028), grade.accent);
+  };
+  const drawStrip = () => {
+    const by = layout.stripY * H;
+    barcode(ctx, W * 0.020, by, W * 0.095, H * 0.045);
+    ctx.save();
+    ctx.fillStyle = "#f2c14e";
+    ctx.font = `${Math.max(11, 13 * u)}px Anton, sans-serif`;
+    ctx.textBaseline = "middle";
+    ctx.fillText("COMING SOON", W * 0.125, by + H * 0.022);
     ctx.restore();
+    billing(ctx, W * 0.55, by - H * 0.006, BILLING, Math.max(7, 8.5 * u));
+    seal(ctx, W * 0.945, by + H * 0.006, Math.min(W, H) * 0.048);
+  };
+
+  if (layout.heroFirst) {
+    // full-bleed hero is the background: title and insets sit on top of it
+    if (heroIdx >= 0 && state.panels[heroIdx]) drawPanel(layout.slots[heroIdx], state.panels[heroIdx]);
+    layout.slots.forEach((slot, i) => {
+      if (i === heroIdx) return;
+      if (state.panels[i]) drawPanel(slot, state.panels[i]);
+    });
+    drawTitle();
+  } else {
+    // panels first, then the title band, then the hero overlapping its top edge
+    layout.slots.forEach((slot, i) => {
+      if (i === heroIdx) return;
+      if (state.panels[i]) drawPanel(slot, state.panels[i]);
+    });
+    drawTitle();
+    if (heroIdx >= 0 && state.panels[heroIdx]) drawPanel(layout.slots[heroIdx], state.panels[heroIdx]);
   }
-
-  // Zona judul: halftone block + chrome 3D + neon script + ribbon.
-  const tz = lay.title;
-  const bandX = W * 0.06;
-  const bandW = W * 0.88;
-  const bandY = tz.bandY * H;
-  const bandH = tz.bandH * H;
-  const titleSize = tz.size * H;
-  drawHalftoneBlock(ctx, bandX, bandY, bandW, bandH, grade.accent);
-  const title = (state.title || 'NEON COAST').toUpperCase();
-  // Kecilkan judul bila lebih lebar dari band.
-  let ts = titleSize;
-  ctx.font = `900 ${ts}px Anton, 'Arial Black', sans-serif`;
-  const tw = ctx.measureText(title).width;
-  if (tw > bandW * 0.92) ts = ts * (bandW * 0.92) / tw;
-  drawChromeTitle(ctx, title, tz.cx * W, bandY + bandH * 0.62, ts,
-    { accent: grade.accent, skew: -0.06 });
-  const subtitle = state.subtitle || 'Paid in Sunsets';
-  drawNeonScript(ctx, subtitle, tz.cx * W, bandY + bandH * 0.98,
-    Math.max(10, titleSize * 0.30));
-  const ribbonSize = Math.max(9, titleSize * 0.20);
-  const ribbonH = ribbonSize * 1.7;
-  // Pop-out: band judul terlalu rendah untuk ribbon di bawahnya (ribbon
-  // akan menimpa billing) — ribbon menumpang di tepi ATAS band.
-  let ribbonY = bandY + bandH + titleSize * 0.10;
-  if (tz.ribbon === 'top' || ribbonY + ribbonH > H * 0.97) ribbonY = bandY - ribbonH * 0.5;
-  drawRibbon(ctx, 'EVERYONE WANTS A CUT OF THE SUNSET', tz.cx * W,
-    ribbonY, bandW * 0.9, ribbonSize);
-
-  // Billing + barcode + seal + COMING SOON (kaki poster).
-  const footY = H * 0.945;
-  drawBilling(ctx, [
-    'NEON COAST  •  A LEONIDA STORY  •  STARRING THE DRIVER  THE CAPTAIN  THE ARTIST  THE LOOKOUT  THE SINGER',
-    'DIRECTED BY NEON COAST STUDIO  •  MUSIC BY THE STAGE SINGER  •  SHOT ON LEONIDA BOULEVARD',
-  ], W * 0.58, footY, Math.max(7, H * 0.011), W * 0.60);
-  drawBarcode(ctx, W * 0.02, H * 0.925, W * 0.09, H * 0.05);
-  ctx.save();
-  ctx.font = `700 ${Math.max(8, H * 0.016)}px Anton, 'Arial Black', sans-serif`;
-  ctx.fillStyle = '#ffc94d';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  ctx.fillText('COMING SOON', W * 0.125, H * 0.965);
-  ctx.restore();
-  drawSeal(ctx, W * 0.935, H * 0.895, Math.max(20, H * 0.062),
-    'NEON COAST', '2026', 'LEONIDA');
-
-  grain(ctx, W, H);
-  vignette(ctx, W, H);
+  drawStrip();
 }

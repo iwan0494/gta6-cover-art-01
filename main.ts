@@ -1,46 +1,46 @@
-// Neon Coast Cover Studio v2 — make.fun gta6-cover-art-01 entry program.
+// Neon Coast Cover Studio v2 — entry program (Node 22, standard library only).
 //
-// The entry is a static offline web app: app/index.html plus its modules,
-// vendored fonts and sample photos. This program (Node 22, standard library
-// only) hands the app in by copying app/ and screenshots/ from this
-// repository into the grader's output directory and writing the dossier
-// there with the kit's vendored buildDossier library.
+// The app itself is plain static files under app/ (index.html + ES modules, no
+// libraries, no network): a desktop browser opens it offline and it never sends a
+// photo anywhere. This program only hands the entry in: it copies app/ and
+// screenshots/ beside this file into the output directory and writes dossier.json,
+// the summary the judge reads, with the vendored make.fun library.
 //
-// Run it locally the same way the grader does:
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-// Run it twice and the two outputs must be byte-identical.
+// Serve the app locally with `node serve.ts`, then open http://localhost:8080.
 
-import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { cp, mkdir, stat, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildDossier } from "./vendor/makefun-app.ts";
 
-const repoRoot = fileURLToPath(new URL(".", import.meta.url));
+const root = dirname(fileURLToPath(import.meta.url));
 const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
 
-// Start from a clean slate so a stale file from an earlier run can never
-// leak into this entry's output.
-rmSync(outDir, { recursive: true, force: true });
-mkdirSync(outDir, { recursive: true });
-
-const appOut = join(outDir, "app");
-cpSync(join(repoRoot, "app"), appOut, { recursive: true });
-
-const shotsOut = join(outDir, "screenshots");
-mkdirSync(shotsOut, { recursive: true });
-if (existsSync(join(repoRoot, "screenshots"))) {
-  cpSync(join(repoRoot, "screenshots"), shotsOut, { recursive: true });
-}
-
-// The sealed gate's own limits (reference/gate.json in the kit): the text
-// cap shapes the dossier bytes; the rest refuse an entry the scorer would
-// refuse, so an oversized entry fails here first, loudly, instead of
-// silently at grading time.
-const dossier = buildDossier(outDir, {
+// The scorer's caps: text budget for the dossier, at most 4 screenshots of at most
+// 256 KiB each, at most 993 files / 48 MiB under app/, paths under 1000 bytes.
+const CAPS = {
   text_max_bytes: 163840,
   screenshots: { max: 4, max_bytes: 262144 },
   app_max_files: 993,
   app_max_bytes: 50331648,
   app_path_max_bytes: 1000,
-});
-writeFileSync(join(outDir, "dossier.json"), dossier);
+};
+
+async function requireDir(path, label) {
+  const info = await stat(path);
+  if (!info.isDirectory()) throw new Error(`${label} is not a directory: ${path}`);
+}
+
+await mkdir(outDir, { recursive: true });
+await requireDir(join(root, "app"), "app");
+await cp(join(root, "app"), join(outDir, "app"), { recursive: true });
+await requireDir(join(root, "screenshots"), "screenshots");
+await cp(join(root, "screenshots"), join(outDir, "screenshots"), { recursive: true });
+
+const dossier = buildDossier(outDir, CAPS);
+await writeFile(join(outDir, "dossier.json"), dossier);
+
+const dossierBytes = (await stat(join(outDir, "dossier.json"))).size;
+if (dossierBytes > 1572864) throw new Error(`dossier.json is ${dossierBytes} bytes, over the 1.5 MiB gate`);
+console.log(`dossier.json: ${dossierBytes} bytes — app/ + screenshots/ copied to ${outDir}`);

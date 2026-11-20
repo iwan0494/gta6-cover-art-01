@@ -1,74 +1,92 @@
-// shots.js — mode ?shot= untuk screenshot + gate.
-//   ?shot=cover  — cover penuh tanpa chrome editor (dipakai screenshot
-//                  1, 3, 4). Param: layout, grade, w, h.
-//   ?shot=editor — editor lengkap dengan foto dimuat (screenshot 2).
-//   tanpa param  — editor biasa.
-// Sinyal siap: window.__shotReady = true, body[data-shot-ready="1"],
-// dan document.title = "shot-ready". Font ditunggu via
-// document.fonts.ready dengan fallback timeout 1500 ms — shot tidak
-// boleh menggantung bila font lambat.
+// shots.js — deterministic ?shot= modes for screenshots and review.
+//   ?shot=cover&photo=<id>&caption=<text>&layout=<id>&grade=<id>&w=&h=
+//       renders one cover full-bleed and signals ready.
+//   ?shot=editor — boots the editor with the sample cast loaded.
+// Anything else boots the editor too. No network, no randomness at render:
+// the same query always draws the same cover.
 
-import { renderCover, panelCount, defaultPanels } from './cover.js';
-import { initEditor, loadSampleImages } from './editor.js';
+import { SAMPLES, sampleById } from "./faces.js";
+import { layoutById, assignPanels, defaultState, renderCover } from "./cover.js";
+import { bootEditor } from "./editor.js";
 
-const params = new URLSearchParams(location.search);
-const mode = params.get('shot') || 'editor';
+function params() {
+  return new URLSearchParams(location.search);
+}
 
-function markReady() {
+function signalReady() {
+  document.documentElement.dataset.shotReady = "1";
   window.__shotReady = true;
-  document.body.setAttribute('data-shot-ready', '1');
-  document.title = 'shot-ready';
 }
 
-async function waitFonts() {
-  try {
-    await Promise.race([
-      document.fonts.ready,
-      new Promise((resolve) => setTimeout(resolve, 1500)),
-    ]);
-  } catch (_) {
-    // Font gagal dimuat — lanjut dengan fallback, jangan gantung.
+async function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("cannot load " + src));
+    img.src = src;
+  });
+}
+
+async function shotCover(q) {
+  await document.fonts.ready;
+  const images = {};
+  for (const s of SAMPLES) {
+    try {
+      images[s.id] = await loadImage(s.src);
+    } catch (e) {
+      console.warn(e.message);
+    }
   }
-}
-
-async function runCoverShot() {
-  document.body.setAttribute('data-shot', 'cover');
-  const layout = params.get('layout') || 'keyart';
-  const grade = params.get('grade') || 'sunset';
-  const w = parseInt(params.get('w') || '1280', 10);
-  const h = parseInt(params.get('h') || '720', 10);
-  const canvas = document.getElementById('stage');
+  const state = defaultState();
+  const layout = q.get("layout");
+  if (layout && layoutById(layout)) {
+    state.layout = layout;
+    state.panels = assignPanels(layout);
+  }
+  const grade = q.get("grade");
+  if (grade) state.grade = grade;
+  const caption = q.get("caption");
+  if (caption) state.title = caption.toUpperCase().slice(0, 18);
+  const heroPhoto = q.get("photo");
+  if (heroPhoto && sampleById(heroPhoto)) {
+    const heroIdx = state.panels.findIndex((p) => p.hero);
+    if (heroIdx >= 0) {
+      const photo = sampleById(heroPhoto);
+      const faceShot = photo.shots.find((s) => s.id === "face") || photo.shots[0];
+      state.panels[heroIdx] = {
+        photo: photo.id, shot: faceShot.id, role: photo.role,
+        kind: "face", hero: true, tilt: -1.5, zoom: 1, ox: 0, oy: 0,
+      };
+    }
+  }
+  const w = Math.max(320, Math.min(2560, parseInt(q.get("w") || "1280", 10) || 1280));
+  const h = Math.max(320, Math.min(2560, parseInt(q.get("h") || "720", 10) || 720));
+  const canvas = document.getElementById("shotCanvas");
   canvas.width = w;
   canvas.height = h;
-  // Sembunyikan kontrol editor dari layout (CSS sudah menanganinya
-  // lewat body[data-shot="cover"], ini pengaman tambahan).
-  const images = await loadSampleImages();
-  await waitFonts();
-  const panels = defaultPanels(layout, 7);
-  renderCover(canvas.getContext('2d'), w, h, {
-    layout, grade,
-    title: 'NEON COAST',
-    subtitle: 'Paid in Sunsets',
-    panels,
-    images,
-  });
-  markReady();
+  canvas.style.display = "block";
+  document.getElementById("app").style.display = "none";
+  renderCover(canvas, images, state);
+  signalReady();
 }
 
-async function runEditorShot() {
-  await initEditor();
-  await waitFonts();
-  markReady();
+async function shotEditor() {
+  await document.fonts.ready;
+  await bootEditor();
+  signalReady();
 }
 
-if (mode === 'cover') {
-  runCoverShot().catch((err) => {
-    console.error('cover shot failed', err);
-    markReady();
+const mode = params().get("shot") || "editor";
+if (mode === "cover") {
+  shotCover(params()).catch((e) => {
+    console.error(e);
+    document.title = "shot failed: " + e.message;
+    signalReady();
   });
 } else {
-  runEditorShot().catch((err) => {
-    console.error('editor shot failed', err);
-    markReady();
+  shotEditor().catch((e) => {
+    console.error(e);
+    document.title = "shot failed: " + e.message;
+    signalReady();
   });
 }
