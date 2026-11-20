@@ -1,6 +1,8 @@
-[
-  { "name": "1-cover.jpg", "query": "?shot=cover&layout=key&grade=sunset&w=1280&h=720", "w": 1280, "h": 720 },
-  { "name": "2-editor.jpg", "query": "?shot=editor&w=1280&h=720", "w": 1280, "h": 720 },
-  { "name": "3-cover-portrait.jpg", "query": "?shot=cover&layout=key&grade=neon&w=1024&h=1280", "w": 1024, "h": 1280 },
-  { "name": "4-cover-square.jpg", "query": "?shot=cover&layout=pop&grade=gold&w=1080&h=1080", "w": 1080, "h": 1080 }
-]
+{
+  "shots": [
+    { "id": "cover", "file": "1-cover.jpg", "mode": "?shot=cover", "width": 1280, "height": 720, "caption": "Key Art cover, landscape" },
+    { "id": "editor", "file": "2-editor.jpg", "mode": "?shot=editor", "width": 1280, "height": 720, "caption": "Editor with a photo loaded" },
+    { "id": "portrait", "file": "3-cover-portrait.jpg", "mode": "?shot=portrait", "width": 1024, "height": 1280, "caption": "Key Art cover, portrait" },
+    { "id": "square", "file": "4-cover-square.jpg", "mode": "?shot=square", "width": 1080, "height": 1080, "caption": "Hero Pop-Out cover, square" }
+  ]
+}

@@ -28,7 +28,7 @@ copyright statement(s).
 distributed by the Copyright Holder(s).
 
 "Modified Version" refers to any derivative made by adding to, deleting,
-or substituting -- in part or in whole -- any of the components of the
+or substituting — in part or in whole — any of the components of the
 Original Version, by changing formats or by porting the Font Software to a
 new environment.
 
@@ -54,7 +54,7 @@ binary files as long as those fields can be easily viewed by the user.
 3) No Modified Version of the Font Software may use the Reserved Font
 Name(s) unless explicit written permission is granted by the corresponding
 Copyright Holder. This restriction only applies to the primary font name as
-presented to the user.
+presented to the users.
 
 4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
 Software shall not be used to promote, endorse or advertise any
@@ -83,8 +83,9 @@ DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
 FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 
-Fonts in this folder:
-- Anton (Regular) — Copyright 2018 The Anton Project Authors
-  (https://github.com/googlefonts/anton), SIL OFL 1.1.
-- Pacifico (Regular) — Copyright 2018 The Pacifico Project Authors
-  (https://github.com/googlefonts/Pacifico), SIL OFL 1.1.
+Fonts covered by this copy of the license in this project:
+- Anton — Copyright 2020 The Anton Project Authors
+  (https://github.com/googlefonts/AntonFont)
+- Pacifico — Copyright 2018 The Pacifico Project Authors
+  (https://github.com/googlefonts/Pacifico)
+Both are released under the SIL Open Font License, Version 1.1.

@@ -1,67 +1,76 @@
-<!doctype html>
-<html lang="id">
+<!DOCTYPE html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Neon Coast Cover Studio — GTA 6 cover art from any photo</title>
-<meta name="description" content="Turn any photo into multi-panel GTA 6-style cover art: face-aware crops, chrome 3D title, poster furniture, PNG export in 3 sizes. Works offline.">
+  <link rel="icon" href="data:,">
+<title>Neon Coast Cover Studio — GTA 6 style cover maker</title>
+<link rel="preload" href="fonts/Anton-Regular.ttf" as="font" type="font/ttf" crossorigin>
+<link rel="preload" href="fonts/Pacifico-Regular.ttf" as="font" type="font/ttf" crossorigin>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app">
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-title">NEON COAST</span>
-      <span class="brand-sub">Cover Studio — Paid in Sunsets</span>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">NC</span>
+    <div>
+      <h1>Neon Coast <em>Cover Studio</em></h1>
+      <p>Turn any photo into a Leonida key-art cover — offline, in your browser.</p>
     </div>
-    <div class="top-actions">
-      <button id="undoBtn" class="ghost" type="button">↩ Undo</button>
-      <button id="redoBtn" class="ghost" type="button">↪ Redo</button>
-      <button id="exportBtn" class="primary" type="button">⬇ Ekspor 3 PNG</button>
-    </div>
-  </header>
-
-  <div class="workbench">
-    <aside class="controls">
-      <section class="panel">
-        <h2>Foto</h2>
-        <div id="photoRow" class="thumbs"></div>
-        <button id="uploadBtn" class="upload" type="button">+ Upload foto</button>
-        <p id="panelInfo" class="info">Panel 1 — Close-up wajah</p>
-        <p id="guardNote" class="guard">5 wajah, masing-masing 1x</p>
-      </section>
-
-      <section class="panel">
-        <h2>Layout</h2>
-        <div id="layoutRow" class="chips"></div>
-      </section>
-
-      <section class="panel">
-        <h2>Grade</h2>
-        <div id="gradeRow" class="swatches"></div>
-      </section>
-
-      <section class="panel">
-        <h2>Judul</h2>
-        <label class="field"><span>Judul cover</span>
-          <input id="titleInput" type="text" maxlength="18" value="NEON COAST">
-        </label>
-        <label class="field"><span>Subjudul</span>
-          <input id="subInput" type="text" maxlength="40" value="Paid in Sunsets">
-        </label>
-      </section>
-    </aside>
-
-    <main class="stage-wrap">
-      <div id="stage" class="stage">
-        <canvas id="coverCanvas"></canvas>
-        <div id="selection" class="selection" style="display:none"></div>
-      </div>
-      <p class="hint">Klik panel untuk memilih · seret untuk menggeser crop · scroll untuk zoom · semua foto contoh bebas lisensi (CC0 / picsum) · bekerja offline, tanpa server.</p>
-    </main>
   </div>
-</div>
-<canvas id="shotCanvas" style="display:none"></canvas>
+  <div class="top-actions">
+    <button id="undo-btn" class="btn ghost" type="button">Undo</button>
+    <button id="redo-btn" class="btn ghost" type="button">Redo</button>
+    <button id="export-btn" class="btn primary" type="button">Export 3 PNGs</button>
+  </div>
+</header>
+
+<main id="editor-ui">
+  <aside class="panel controls" aria-label="Cover controls">
+    <section>
+      <h2>Layout</h2>
+      <div id="layouts" class="chips"></div>
+    </section>
+    <section>
+      <h2>Grade</h2>
+      <div id="grades" class="chips"></div>
+    </section>
+    <section>
+      <h2>Cast photo</h2>
+      <p class="hint">Tap a role to put that photo in the selected panel.</p>
+      <div id="photos" class="chips"></div>
+      <label class="upload">
+        <input id="upload-input" type="file" accept="image/*">
+        <span>Upload your own photo…</span>
+      </label>
+    </section>
+    <section>
+      <h2>Title</h2>
+      <label class="field">Cover title
+        <input id="title-input" type="text" maxlength="24" value="NEON COAST">
+      </label>
+      <label class="field">Subtitle
+        <input id="subtitle-input" type="text" maxlength="40" value="Paid in Sunsets">
+      </label>
+    </section>
+    <section>
+      <h2>Selected panel</h2>
+      <p id="panel-info" class="hint">Click a panel to select it.</p>
+      <button id="shot-btn" class="btn ghost" type="button">Cycle shot</button>
+      <p id="face-warn" class="warn" style="display:none">A face is used in two panels — pick a different shot.</p>
+    </section>
+    <section class="credits">
+      <h2>Photos</h2>
+      <p>Kit photos: boulevard, pier. Mural: “Graffiti Portrait Bülowstraße” (CC0). Portrait: “Smiling senior woman with curly hair” (CC BY 2.0). Singer: “Jack Johnson 2014”, photo by @Photocyclone (CC BY-SA 4.0). All via Wikimedia Commons.</p>
+    </section>
+  </aside>
+
+  <section class="stage">
+    <canvas id="cover" width="1280" height="720"></canvas>
+    <p class="hint">Drag a panel to reframe it · scroll over a panel to zoom · every panel keeps its face whole.</p>
+  </section>
+</main>
+
 <script type="module" src="src/shots.js"></script>
 </body>
 </html>

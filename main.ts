@@ -1,46 +1,50 @@
-// Neon Coast Cover Studio v2 — entry program (Node 22, standard library only).
+// Neon Coast Cover Studio — entry point (Node 22, stdlib only).
 //
-// The app itself is plain static files under app/ (index.html + ES modules, no
-// libraries, no network): a desktop browser opens it offline and it never sends a
-// photo anywhere. This program only hands the entry in: it copies app/ and
-// screenshots/ beside this file into the output directory and writes dossier.json,
-// the summary the judge reads, with the vendored make.fun library.
-//
-//   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
-// Serve the app locally with `node serve.ts`, then open http://localhost:8080.
+// Builds the submission directory: copies app/ and screenshots/ into the
+// output dir, then writes dossier.json with the kit's buildDossier. The
+// output dir comes from MAKEFUN_OUTPUT_DIR, defaulting to ./out. The build
+// is deterministic: same input files, same bytes out, so two runs are
+// byte-identical.
 
-import { cp, mkdir, stat, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { buildDossier } from "./vendor/makefun-app.ts";
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
-const root = dirname(fileURLToPath(import.meta.url));
-const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+const ROOT = new URL(".", import.meta.url).pathname;
+const OUT = process.env.MAKEFUN_OUTPUT_DIR || join(ROOT, "out");
 
-// The scorer's caps: text budget for the dossier, at most 4 screenshots of at most
-// 256 KiB each, at most 993 files / 48 MiB under app/, paths under 1000 bytes.
+// The bounty gate, from the kit's competition.yaml: app/ at most 993 files
+// and 48 MiB, each path at most 1000 bytes, index.html at most 1 MiB, 3-4
+// screenshots of at most 256 KiB, dossier at most 1.5 MiB, text 160 KiB.
 const CAPS = {
-  text_max_bytes: 163840,
-  screenshots: { max: 4, max_bytes: 262144 },
+  text_max_bytes: 160 * 1024,
+  screenshots: { max: 4, max_bytes: 256 * 1024 },
   app_max_files: 993,
-  app_max_bytes: 50331648,
+  app_max_bytes: 48 * 1024 * 1024,
   app_path_max_bytes: 1000,
 };
 
-async function requireDir(path, label) {
-  const info = await stat(path);
-  if (!info.isDirectory()) throw new Error(`${label} is not a directory: ${path}`);
+function copyTree(from: string, to: string): void {
+  mkdirSync(to, { recursive: true });
+  for (const name of readdirSync(from).sort()) {
+    const src = join(from, name);
+    const dst = join(to, name);
+    if (statSync(src).isDirectory()) copyTree(src, dst);
+    else cpSync(src, dst);
+  }
 }
 
-await mkdir(outDir, { recursive: true });
-await requireDir(join(root, "app"), "app");
-await cp(join(root, "app"), join(outDir, "app"), { recursive: true });
-await requireDir(join(root, "screenshots"), "screenshots");
-await cp(join(root, "screenshots"), join(outDir, "screenshots"), { recursive: true });
+function main(): void {
+  const appDir = join(ROOT, "app");
+  const shotsDir = join(ROOT, "screenshots");
+  if (!existsSync(appDir)) throw new Error("missing app/ directory");
+  if (!existsSync(shotsDir)) throw new Error("missing screenshots/ directory");
+  mkdirSync(OUT, { recursive: true });
+  copyTree(appDir, join(OUT, "app"));
+  copyTree(shotsDir, join(OUT, "screenshots"));
+  const dossier = buildDossier(OUT, CAPS);
+  writeFileSync(join(OUT, "dossier.json"), dossier);
+  console.log(`built ${OUT}: dossier.json ${dossier.length} bytes`);
+}
 
-const dossier = buildDossier(outDir, CAPS);
-await writeFile(join(outDir, "dossier.json"), dossier);
-
-const dossierBytes = (await stat(join(outDir, "dossier.json"))).size;
-if (dossierBytes > 1572864) throw new Error(`dossier.json is ${dossierBytes} bytes, over the 1.5 MiB gate`);
-console.log(`dossier.json: ${dossierBytes} bytes — app/ + screenshots/ copied to ${outDir}`);
+main();

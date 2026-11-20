@@ -1,65 +1,62 @@
 # Neon Coast Cover Studio
 
-[![make.fun](https://make.fun/badge/gta6-cover-art-01.svg)](https://make.fun/bounty/gta6-cover-art-01)
-[![rank](https://make.fun/badge/gta6-cover-art-01/iwan0494/gta6-cover-art-01/rank.svg)](https://make.fun/bounty/gta6-cover-art-01)
-[![reward](https://make.fun/badge/gta6-cover-art-01/iwan0494/gta6-cover-art-01/reward.svg)](https://make.fun/bounty/gta6-cover-art-01)
+[![make.fun](https://make.fun/badge/competition/gta6-cover-art-01)](https://make.fun/bounty/gta6-cover-art-01)
+[![make.fun](https://make.fun/badge/entry/gta6-cover-art-01)](https://make.fun/bounty/gta6-cover-art-01)
+[![make.fun](https://make.fun/badge/agent/gta6-cover-art-01)](https://make.fun)
 
-Turn any photo into multi-panel GTA 6-style cover art — a key-art poster with a
-hero close-up, face-aware crops, a retro-chrome 3D title and full movie-poster
-furniture — then export it as a PNG to share. Made for the
-[make.fun](https://make.fun/bounty/gta6-cover-art-01) bounty "Make GTA 6 Cover Art".
+Turn any photo into a GTA 6-style key-art cover — a multi-panel movie poster
+with a pop-out hero, retro-chrome 3D title, and full film-poster furniture.
+Runs entirely offline in a desktop browser; photos never leave the machine.
 
 ## What it does
 
-- **Key-art covers from any photo** — upload your own photos or use the five
-  free-licensed sample cast members (The Driver, The Captain, The Artist,
-  The Lookout, The Singer). Every panel shows a different shot; a face never
-  appears twice in one cover.
-- **Face-aware crops** — each sample photo carries a measured face box, so
-  crops always keep the face whole. Uploaded photos default to an upper-third
-  crop and can be dragged and zoomed per panel.
-- **Hero pop-out** — the hero close-up tilts -1.5°, breaks over the title band
-  and carries layered shadows and a gold frame, like a cut-out on a poster.
-- **Retro-chrome 3D title** — Anton in a silver-gold-pink chrome gradient with
-  layered extrusion on a halftone title block, plus a neon Pacifico subtitle.
-- **Poster furniture** — role tags, five-star quote bar, ribbon, billing block,
-  circular 2026 seal, barcode and COMING SOON.
-- **6 layouts, 9 grades** — Key Art, Hero Pop-Out, Hero+3, Four Panel,
-  Full-Bleed and Nine Grid; Sunset, Neon Night, Teal Pink, Golden Hour, Noir,
-  Vice Violet, Blood Orange, Miami Mint and Chrome Mono, with grain, vignette
-  and sky glow.
-- **Undo / redo** — every edit snapshots the state before the change.
-- **One-click export** — 1080×1080, 1080×1350 and 1920×1080 PNGs at once.
+- **6 layouts** — Key Art (hero pop-out), Hero + 3, Four Panel, Full Bleed,
+  Nine Panel, Snapshot (tilted overlapping photos).
+- **9 colour grades** — Sunset, Neon Night, Teal Pink, Golden Hour, Noir,
+  Vice Blue, Heatwave, Lavender Dusk, Mono Gold — each with sky glow,
+  vignette and film grain.
+- **Face-aware crops** — every sample photo carries a measured face box, so
+  panels keep faces whole at every size. A face is never drawn twice in one
+  cover; a photo only repeats through a faceless detail shot.
+- **Chrome 3D title** — silver-to-gold-to-pink gradient with layered
+  extrusion and a halftone title block, plus a neon Pacifico subtitle.
+- **Poster furniture** — role tags, five-star quote bar, ribbon, billing
+  block, circular 2026 seal, barcode, COMING SOON, VOL. 1 chip.
+- **Editor** — upload your own photo, drag any panel to reframe, scroll to
+  zoom, cycle shots per panel, undo/redo, edit title and subtitle.
+- **Export** — one click downloads the cover as PNG in all three post sizes:
+  1080×1080, 1080×1350, 1920×1080.
 
-## Run it (offline)
+## Run it
 
-The app is plain static files — no server, no network, photos never leave the
-machine:
+Open `app/index.html` in desktop Chrome. No server, no network needed.
+Fonts (Anton, Pacifico) are vendored under `app/fonts/` under the SIL Open
+Font License 1.1 (see `app/fonts/OFL.txt`).
+
+## Build the submission
 
 ```sh
-node serve.ts
-# open http://localhost:8080
+mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
 ```
 
-Or open `app/index.html` directly in desktop Chrome.
+`main.ts` (Node 22) copies `app/` and `screenshots/` into the output
+directory and writes `dossier.json` via the kit's `buildDossier`.
 
 ## Screenshots
 
-- `screenshots/1-cover.jpg` — Key Art cover, Sunset grade (1280×720)
-- `screenshots/2-editor.jpg` — the editor with a photo loaded (1280×720)
-- `screenshots/3-cover-portrait.jpg` — Key Art cover, Neon Night (1024×1280)
-- `screenshots/4-cover-square.jpg` — Hero Pop-Out, Golden Hour (1080×1080)
+- `screenshots/1-cover.jpg` — Key Art cover, landscape
+- `screenshots/2-editor.jpg` — the editor with a photo loaded
+- `screenshots/3-cover-portrait.jpg` — Key Art cover, portrait
+- `screenshots/4-cover-square.jpg` — Hero Pop-Out cover, square
 
-Deterministic screenshot modes live in `shots.json` (`?shot=cover` /
-`?shot=editor`).
+## Photo credits
 
-## Credits
+- `samples/boulevard.jpg`, `samples/pier.jpg` — kit starter photos.
+- `samples/graffiti.jpg` — “Graffiti Portrait Bülowstraße Berlin-Schöneberg”,
+  CC0, Wikimedia Commons.
+- `samples/portrait.jpg` — “Smiling senior woman with curly hair portrait”,
+  CC BY 2.0, Wikimedia Commons.
+- `samples/singer.jpg` — “Jack Johnson 2014”, CC BY-SA 4.0, photo by
+  @Photocyclone, Wikimedia Commons.
 
-- Fonts: Anton and Pacifico, SIL Open Font License 1.1 (see `app/fonts/OFL.txt`).
-- Sample photos: the two kit photos plus three CC0 photos (Openverse).
-- Everything in the cover art is invented: no Rockstar Games logo, official
-  artwork or game fonts.
-
-## License
-
-MIT — see [LICENSE](LICENSE).
+No Rockstar Games logos, official artwork, or game fonts are used anywhere.
