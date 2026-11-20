@@ -1,260 +1,247 @@
-// poster.js — the film-poster furniture of Neon Coast Cover Studio: the
-// retro-chrome 3D title, the neon script subtitle, role tags, quote bar,
-// ribbon, billing block, circular seal and barcode. Everything is drawn on
-// the cover canvas itself, so the exported PNG carries the whole poster.
+// poster.js — film-poster furniture drawn on the canvas: chrome 3D
+// title, neon subtitle, quote bar, ribbon, billing block, seal,
+// barcode and role tags. Title position is computed exactly once per
+// frame so it can never double-center or overflow its block.
 
-export const TITLE = 'NEON COAST';
-export const SUBTITLE = 'Paid in Sunsets';
-export const QUOTE = '“The most wanted sunset in Leonida”';
-export const RIBBON = 'EVERYONE WANTS A CUT OF THE SUNSET';
-export const BILLING =
-  'NEON COAST  •  A LEONIDA STORY  •  STARRING THE DRIVER  THE CAPTAIN  THE ARTIST  THE LOOKOUT  THE SINGER';
-export const BILLING_2 =
-  'DIRECTED BY NEON COAST STUDIO  •  MUSIC BY THE STAGE SINGER  •  SHOT ON LEONIDA BOULEVARD';
+import { BANDS } from './cover.js';
 
-// A subtle halftone dot field, drawn once into an offscreen canvas and
-// tiled over the title block. Kept faint on purpose: texture, not noise.
-export function halftonePattern(ctx, size, spacing, alpha) {
-  const tile = document.createElement('canvas');
-  tile.width = spacing;
-  tile.height = spacing;
-  const t = tile.getContext('2d');
-  t.fillStyle = `rgba(255,255,255,${alpha})`;
-  t.beginPath();
-  t.arc(spacing / 2, spacing / 2, size / 2, 0, Math.PI * 2);
-  t.fill();
-  return ctx.createPattern(tile, 'repeat');
+const GOLD = '#f5b90c';
+const PINK = '#ff2e88';
+
+// Role tag: black chip with a gold underline, shrunk to fit the panel
+// width so it never clips at a narrow panel's right edge.
+export function drawRoleTag(ctx, role, px) {
+  const pad = Math.max(6, px.w * 0.04);
+  // Cap the size so a tag on the big hero panel stays a tag, not a banner.
+  const cap = Math.max(10, px.h * 0.055);
+  let fs = Math.max(9, Math.min(px.h * 0.16, px.w * 0.085, cap));
+  ctx.save();
+  ctx.font = `700 ${fs}px Anton, sans-serif`;
+  let tw = ctx.measureText(role).width;
+  while (tw + pad * 2 > px.w - 8 && fs > 7) {
+    fs -= 1;
+    ctx.font = `700 ${fs}px Anton, sans-serif`;
+    tw = ctx.measureText(role).width;
+  }
+  const th = fs * 1.5;
+  ctx.fillStyle = 'rgba(8,3,14,0.92)';
+  ctx.fillRect(px.x + 4, px.y + 4, tw + pad * 2, th);
+  ctx.fillStyle = GOLD;
+  ctx.fillRect(px.x + 4, px.y + 4 + th - 3, tw + pad * 2, 3);
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(role, px.x + 4 + pad, px.y + 4 + th / 2);
+  ctx.restore();
 }
 
-// Retro-chrome 3D title. One measurement, one centred position — the text
-// is drawn with textAlign 'left' from a single computed x, so it can never
-// double-centre or slide off the canvas. Returns the title's bounding box.
-export function drawChromeTitle(ctx, text, cx, top, width, fonts) {
-  // `width` is the limiting width the caller passes (already the smaller
-  // of the title-block width and a height-derived bound), so the title
-  // always fits its block at every canvas size.
-  const size = Math.min(width * 0.135, 150);
+function fitFont(ctx, text, maxWidth, startSize, family, weight = 700) {
+  let fs = startSize;
+  ctx.font = `${weight} ${fs}px ${family}`;
+  while (ctx.measureText(text).width > maxWidth && fs > 8) {
+    fs -= 2;
+    ctx.font = `${weight} ${fs}px ${family}`;
+  }
+  return fs;
+}
+
+function drawChromeTitle(ctx, W, H, title) {
+  const band = BANDS.title;
+  const bx = W * 0.055, bw = W * 0.89;
+  const by = band.y * H, bh = band.h * H;
+
+  // Halftone title block: dark panel, gold frame, faint dot field.
   ctx.save();
-  ctx.font = `${size}px ${fonts.display}`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
-  const tw = ctx.measureText(text).width;
-  // Slight skew for the retro lean, pivoting around the title centre.
-  ctx.translate(cx, top);
-  ctx.transform(1, 0, -0.06, 1, 0, 0);
-  const x = -tw / 2;
-  // Extrusion: layered offsets, darkest first, stepping up-left.
-  const layers = [
-    ['#3d0a4d', 10], ['#5c1168', 8], ['#7a1a80', 6],
-    ['#a12a8c', 4], ['#c93a92', 2],
+  ctx.fillStyle = '#1a0b28';
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.strokeStyle = GOLD; ctx.lineWidth = Math.max(2, W * 0.002);
+  ctx.strokeRect(bx + 2, by + 2, bw - 4, bh - 4);
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  const step = Math.max(9, W * 0.011);
+  for (let y = by + 10; y < by + bh - 8; y += step) {
+    for (let x = bx + 12; x < bx + bw - 8; x += step) {
+      if (((x / step) | 0) % 2 === ((y / step) | 0) % 2) ctx.fillRect(x, y, 2, 2);
+    }
+  }
+
+  // Title size comes from the block height, so the chrome can never
+  // spill over the top of the block (the R4 landscape bug).
+  const titleSize = fitFont(ctx, title, bw * 0.94, bh * 0.62, 'Anton, sans-serif');
+  const subSize = Math.max(14, titleSize * 0.30);
+  const cx = W / 2;
+  const titleY = by + bh * 0.56;
+  const subY = by + bh * 0.86;
+
+  ctx.save();
+  ctx.translate(cx, titleY);
+  ctx.transform(1, 0, -0.06, 1, 0, 0); // slight skew, poster style
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `700 ${titleSize}px Anton, sans-serif`;
+  // Layered extrusion: dark offsets stacked downward.
+  const layers = Math.max(3, Math.round(titleSize / 16));
+  for (let i = layers; i >= 1; i--) {
+    ctx.fillStyle = i % 2 ? '#5c1040' : '#2a0a3a';
+    ctx.fillText(title, i * 1.6, i * 2.2);
+  }
+  // Chrome face: silver -> gold -> pink vertical gradient.
+  const grad = ctx.createLinearGradient(0, -titleSize * 0.55, 0, titleSize * 0.55);
+  grad.addColorStop(0, '#fdfdfd');
+  grad.addColorStop(0.38, '#ffe9a8');
+  grad.addColorStop(0.62, '#f5b90c');
+  grad.addColorStop(1, '#ff5e8a');
+  ctx.fillStyle = grad;
+  ctx.fillText(title, 0, 0);
+  // Top highlight + dark outline.
+  ctx.strokeStyle = 'rgba(20,6,30,0.85)';
+  ctx.lineWidth = Math.max(2, titleSize * 0.03);
+  ctx.strokeText(title, 0, 0);
+  ctx.restore();
+
+  ctx.restore();
+  return { subY, subSize, cx };
+}
+
+function drawSubtitle(ctx, W, H, subtitle, geom) {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `${geom.subSize}px Pacifico, cursive`;
+  ctx.shadowColor = PINK; ctx.shadowBlur = 18;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(subtitle, geom.cx, geom.subY);
+  ctx.shadowColor = '#2fd6ff'; ctx.shadowBlur = 8;
+  ctx.fillText(subtitle, geom.cx, geom.subY);
+  ctx.restore();
+}
+
+function drawQuoteBar(ctx, W, H) {
+  const band = BANDS.quote;
+  const y = band.y * H + band.h * H * 0.5;
+  ctx.save();
+  ctx.textBaseline = 'middle';
+  const starSize = Math.max(13, H * 0.022);
+  ctx.font = `${starSize}px sans-serif`;
+  ctx.fillStyle = GOLD;
+  const stars = '★★★★★';
+  const sx = W * 0.02;
+  ctx.fillText(stars, sx, y);
+  const qx = sx + ctx.measureText(stars).width + W * 0.012;
+  const qSize = Math.max(12, H * 0.02);
+  ctx.font = `italic ${qSize}px Georgia, serif`;
+  ctx.fillStyle = '#f3e9ff';
+  ctx.fillText('\u201cThe most wanted sunset in Leonida\u201d', qx, y);
+  // VOL. 1 chip, pinned to the right edge.
+  const chip = 'VOL. 1';
+  const cSize = Math.max(11, H * 0.018);
+  ctx.font = `700 ${cSize}px Anton, sans-serif`;
+  const cw = ctx.measureText(chip).width + W * 0.02;
+  const ch = cSize * 1.7;
+  const cx0 = W * 0.982 - cw;
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 1.6;
+  ctx.strokeRect(cx0, y - ch / 2, cw, ch);
+  ctx.fillStyle = GOLD;
+  ctx.textAlign = 'center';
+  ctx.fillText(chip, cx0 + cw / 2, y);
+  ctx.restore();
+}
+
+function drawRibbon(ctx, W, H) {
+  const band = BANDS.ribbon;
+  const y = band.y * H, h = band.h * H;
+  const x0 = W * 0.20, x1 = W * 0.80;
+  ctx.save();
+  ctx.fillStyle = PINK;
+  ctx.beginPath();
+  ctx.moveTo(x0 + h * 0.5, y); ctx.lineTo(x1 - h * 0.5, y);
+  ctx.lineTo(x1, y + h / 2); ctx.lineTo(x1 - h * 0.5, y + h);
+  ctx.lineTo(x0 + h * 0.5, y + h); ctx.lineTo(x0, y + h / 2);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.fillRect(x0 + h * 0.5, y, (x1 - x0) - h, 2);
+  const text = 'EVERYONE WANTS A CUT OF THE SUNSET';
+  const fs = fitFont(ctx, text, (x1 - x0) * 0.86, h * 0.62, 'Anton, sans-serif');
+  ctx.font = `700 ${fs}px Anton, sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(text, (x0 + x1) / 2, y + h / 2 + 1);
+  ctx.restore();
+}
+
+function drawBarcode(ctx, x, y, w, h) {
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
+  ctx.fillStyle = '#0c0614';
+  let cx = x;
+  const bars = [3, 1, 2, 1, 1, 3, 2, 2, 1, 1, 3, 1, 2, 3, 1, 1, 2, 1, 3, 2];
+  for (const b of bars) {
+    const bw = b * (w / 44);
+    ctx.fillRect(cx, y, bw, h);
+    cx += bw + (w / 44);
+    if (cx > x + w) break;
+  }
+  ctx.restore();
+}
+
+function drawSeal(ctx, W, H) {
+  const band = BANDS.footer;
+  const cy = band.y * H + band.h * H * 0.55;
+  const r = Math.min(W, H) * 0.038;
+  const cx = W * 0.955;
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a0b28'; ctx.fill();
+  ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.78, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(245,185,12,0.6)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = GOLD;
+  ctx.font = `${r * 0.72}px sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('\u2605', cx, cy - r * 0.22);
+  ctx.font = `700 ${r * 0.42}px Anton, sans-serif`;
+  ctx.fillText('2026', cx, cy + r * 0.38);
+  ctx.restore();
+}
+
+function drawFooter(ctx, W, H) {
+  const band = BANDS.footer;
+  const y = band.y * H, h = band.h * H;
+  ctx.save();
+  // Barcode + COMING SOON, bottom left.
+  const bw = W * 0.075, bh = h * 0.85;
+  drawBarcode(ctx, W * 0.018, y + h * 0.05, bw, bh);
+  const cSize = Math.max(11, H * 0.018);
+  ctx.font = `700 ${cSize}px Anton, sans-serif`;
+  ctx.fillStyle = GOLD;
+  ctx.textBaseline = 'middle';
+  ctx.fillText('COMING SOON', W * 0.018 + bw + W * 0.012, y + h * 0.5);
+  // Billing block, centered, shrunk to fit the gap between the
+  // COMING SOON label and the seal (never collides with either).
+  const left = W * 0.018 + bw + W * 0.012 + ctx.measureText('COMING SOON').width + W * 0.03;
+  const right = W * 0.955 - Math.min(W, H) * 0.05;
+  const lines = [
+    'NEON COAST  \u2022  A LEONIDA STORY  \u2022  STARRING THE DRIVER  THE CAPTAIN  THE ARTIST  THE LOOKOUT  THE SINGER',
+    'DIRECTED BY NEON COAST STUDIO  \u2022  MUSIC BY THE STAGE SINGER  \u2022  SHOT ON LEONIDA BOULEVARD',
   ];
-  for (const [color, dy] of layers) {
-    ctx.fillStyle = color;
-    ctx.fillText(text, x, dy);
+  let fs = Math.max(8, H * 0.0135);
+  ctx.font = `${fs}px sans-serif`;
+  while (Math.max(ctx.measureText(lines[0]).width, ctx.measureText(lines[1]).width) > right - left && fs > 6) {
+    fs -= 0.5;
+    ctx.font = `${fs}px sans-serif`;
   }
-  // Chrome face: silver -> gold -> pink, top to bottom.
-  const grad = ctx.createLinearGradient(0, -size * 0.72, 0, size * 0.22);
-  grad.addColorStop(0.0, '#ffffff');
-  grad.addColorStop(0.32, '#e8ecf4');
-  grad.addColorStop(0.55, '#f7c948');
-  grad.addColorStop(0.78, '#ff7ab8');
-  grad.addColorStop(1.0, '#ff4d94');
-  ctx.fillStyle = grad;
-  ctx.fillText(text, x, 0);
-  // Top highlight + thin dark outline to lift the letters off the block.
-  ctx.strokeStyle = 'rgba(20,4,32,0.55)';
-  ctx.lineWidth = Math.max(1, size * 0.012);
-  ctx.strokeText(text, x, 0);
-  ctx.fillStyle = 'rgba(255,255,255,0.75)';
-  ctx.fillRect(x + tw * 0.06, -size * 0.66, tw * 0.5, Math.max(2, size * 0.03));
-  ctx.restore();
-  return { x: cx - tw / 2, y: top - size * 0.72, w: tw, h: size * 0.95 };
-}
-
-export function drawNeonSubtitle(ctx, text, cx, y, size, fonts) {
-  ctx.save();
-  ctx.font = `${size}px ${fonts.script}`;
+  ctx.fillStyle = 'rgba(243,233,255,0.85)';
   ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.shadowColor = '#ff2e88';
-  ctx.shadowBlur = size * 0.55;
-  ctx.fillStyle = '#ffd7ea';
-  ctx.fillText(text, cx, y);
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(text, cx, y);
+  ctx.fillText(lines[0], (left + right) / 2, y + h * 0.28);
+  ctx.fillText(lines[1], (left + right) / 2, y + h * 0.74);
   ctx.restore();
+  drawSeal(ctx, W, H);
 }
 
-export function drawRoleTag(ctx, text, x, y, scale, maxWidth) {
-  ctx.save();
-  // Shrink the tag to fit narrow panels (portrait/square side slots are
-  // barely wider than the text): measure, then step the font down until
-  // the tag fits its max width instead of spilling past the panel edge.
-  let fontSize = Math.round(15 * scale);
-  ctx.font = `700 ${fontSize}px ${'Arial, sans-serif'}`;
-  const pad = 8 * scale;
-  let w = ctx.measureText(text).width + pad * 2;
-  while (maxWidth && w > maxWidth && fontSize > 7) {
-    fontSize -= 1;
-    ctx.font = `700 ${fontSize}px ${'Arial, sans-serif'}`;
-    w = ctx.measureText(text).width + pad * 2;
-  }
-  const h = 24 * scale;
-  ctx.fillStyle = '#0d0416';
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = '#f2b705';
-  ctx.fillRect(x, y + h - 3 * scale, w, 3 * scale);
-  ctx.fillStyle = '#ffffff';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, x + pad, y + h / 2 - 1 * scale);
-  ctx.restore();
-  return { w, h };
-}
-
-export function drawQuoteBar(ctx, text, x, y, width, scale, fonts) {
-  ctx.save();
-  ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#f2b705';
-  const star = '★'.repeat(5);
-  ctx.font = `${Math.round(17 * scale)}px ${'Arial, sans-serif'}`;
-  ctx.textAlign = 'left';
-  ctx.fillText(star, x, y);
-  const sw = ctx.measureText(star).width;
-  ctx.fillStyle = '#fff3d6';
-  ctx.font = `italic ${Math.round(16 * scale)}px Georgia, serif`;
-  ctx.fillText(text, x + sw + 10 * scale, y);
-  ctx.restore();
-}
-
-export function drawRibbon(ctx, text, cx, y, width, height, fonts) {
-  ctx.save();
-  const x = cx - width / 2;
-  // Folded ends.
-  ctx.fillStyle = '#c2185b';
-  ctx.beginPath();
-  ctx.moveTo(x - 16, y);
-  ctx.lineTo(x, y);
-  ctx.lineTo(x, y + height);
-  ctx.lineTo(x - 16, y + height);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x + width + 16, y);
-  ctx.lineTo(x + width, y);
-  ctx.lineTo(x + width, y + height);
-  ctx.lineTo(x + width + 16, y + height);
-  ctx.closePath();
-  ctx.fill();
-  // Body with a soft vertical shade.
-  const grad = ctx.createLinearGradient(0, y, 0, y + height);
-  grad.addColorStop(0, '#ff5c9e');
-  grad.addColorStop(1, '#ff2e88');
-  ctx.fillStyle = grad;
-  ctx.fillRect(x, y, width, height);
-  ctx.fillStyle = '#ffffff';
-  ctx.font = `700 ${Math.round(height * 0.52)}px ${fonts.display}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, cx, y + height / 2 + 1);
-  ctx.restore();
-}
-
-export function drawBilling(ctx, lines, cx, y, width, scale) {
-  ctx.save();
-  ctx.fillStyle = 'rgba(255,243,214,0.82)';
-  // Fit the billing inside `width`: step the font down until the longest
-  // line fits, so it never runs under the barcode or into the seal.
-  let fontSize = Math.round(11 * scale);
-  ctx.font = `${fontSize}px ${'Arial, sans-serif'}`;
-  const widest = Math.max(...lines.map((line) => ctx.measureText(line).width));
-  while (widest > width && fontSize > 7) {
-    fontSize -= 1;
-    ctx.font = `${fontSize}px ${'Arial, sans-serif'}`;
-    if (Math.max(...lines.map((line) => ctx.measureText(line).width)) <= width) break;
-  }
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  lines.forEach((line, i) => {
-    ctx.fillText(line, cx, y + i * 15 * scale);
-  });
-  ctx.restore();
-}
-
-export function drawSeal(ctx, cx, cy, r) {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.lineWidth = Math.max(2, r * 0.07);
-  ctx.strokeStyle = '#f2b705';
-  ctx.fillStyle = '#2a1038';
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(0, 0, r * 0.78, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.fillStyle = '#f2b705';
-  ctx.font = `${Math.round(r * 0.62)}px ${'Arial, sans-serif'}`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('★', 0, -r * 0.16);
-  ctx.font = `700 ${Math.round(r * 0.3)}px ${'Arial, sans-serif'}`;
-  ctx.fillText('2026', 0, r * 0.34);
-  ctx.restore();
-}
-
-export function drawBarcode(ctx, x, y, w, h) {
-  ctx.save();
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = '#0d0416';
-  let bx = x + 4;
-  let i = 0;
-  while (bx < x + w - 4) {
-    const bw = [2, 1, 3, 1, 2, 4, 1, 2][i % 8];
-    if (i % 2 === 0) ctx.fillRect(bx, y + 3, bw, h - 6);
-    bx += bw + 2;
-    i += 1;
-  }
-  ctx.restore();
-}
-
-export function drawChip(ctx, text, x, y, scale, fonts) {
-  ctx.save();
-  ctx.font = `700 ${Math.round(13 * scale)}px ${fonts.display}`;
-  const pad = 9 * scale;
-  const w = ctx.measureText(text).width + pad * 2;
-  const h = 22 * scale;
-  ctx.fillStyle = '#f2b705';
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = '#0d0416';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, x + pad, y + h / 2 + 1);
-  ctx.restore();
-  return w;
-}
-
-export function drawVolumeChip(ctx, text, x, y, scale) {
-  // `x` is the chip's RIGHT edge, so callers can pin it to the canvas
-  // edge without measuring the text first; the chip never runs off-canvas.
-  ctx.save();
-  ctx.strokeStyle = '#f2b705';
-  ctx.lineWidth = Math.max(1.5, 2 * scale);
-  ctx.fillStyle = 'rgba(13,4,22,0.6)';
-  ctx.font = `700 ${Math.round(13 * scale)}px ${'Arial, sans-serif'}`;
-  const pad = 8 * scale;
-  const w = ctx.measureText(text).width + pad * 2;
-  const h = 22 * scale;
-  const x0 = x - w;
-  ctx.fillRect(x0, y, w, h);
-  ctx.strokeRect(x0, y, w, h);
-  ctx.fillStyle = '#f2b705';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(text, x0 + pad, y + h / 2 + 1);
-  ctx.restore();
-  return w;
+export function drawPosterFurniture(ctx, W, H, opts) {
+  const { title, subtitle } = opts;
+  drawQuoteBar(ctx, W, H);
+  const geom = drawChromeTitle(ctx, W, H, title);
+  drawSubtitle(ctx, W, H, subtitle, geom);
+  drawRibbon(ctx, W, H);
+  drawFooter(ctx, W, H);
 }

@@ -1,108 +1,115 @@
-// cover.js — the canvas renderer of Neon Coast Cover Studio. It draws the
-// whole poster: inked panels with face-safe crops, the chrome title block,
-// ribbon, billing, seal and barcode, under one of nine colour grades.
-// Layouts are fractions of the canvas, so the same cover renders at any
-// export size (1080x1080, 1080x1350, 1920x1080) without re-laying out.
+// cover.js — canvas renderer for Neon Coast Cover Studio.
+// Layouts are pure geometry (fractions of the canvas); the face-safe
+// crop guard guarantees every face box stays whole inside its panel.
 
-import { SAMPLES, sampleById, faceSafeWindow } from './faces.js';
-import {
-  TITLE, SUBTITLE, QUOTE, RIBBON, BILLING, BILLING_2,
-  halftonePattern, drawChromeTitle, drawNeonSubtitle, drawRoleTag,
-  drawQuoteBar, drawRibbon, drawBilling, drawSeal, drawBarcode,
-  drawChip, drawVolumeChip,
-} from './poster.js';
+import { SAMPLES, sampleById } from './faces.js';
+import { drawRoleTag, drawPosterFurniture } from './poster.js';
 
-export const FONTS = {
-  display: '"Anton", "Arial Black", sans-serif',
-  script: '"Pacifico", cursive',
-};
+const GOLD = '#f5b90c';
 
-export const GRADES = [
-  { id: 'sunset', name: 'Sunset', tint: 'rgba(255,120,40,0.16)', blend: 'overlay', glow: '#ff9a3d', filter: '' },
-  { id: 'neon', name: 'Neon Night', tint: 'rgba(255,46,136,0.14)', blend: 'soft-light', glow: '#ff2e88', filter: '' },
-  { id: 'teal', name: 'Teal Pink', tint: 'rgba(31,182,166,0.14)', blend: 'overlay', glow: '#1fb6a6', filter: '' },
-  { id: 'golden', name: 'Golden Hour', tint: 'rgba(247,201,72,0.15)', blend: 'soft-light', glow: '#f7c948', filter: '' },
-  { id: 'noir', name: 'Noir', tint: 'rgba(10,10,30,0.14)', blend: 'overlay', glow: '#8a8aa8', filter: 'grayscale(0.85) contrast(1.15)' },
-  { id: 'vice', name: 'Vice Blue', tint: 'rgba(120,60,255,0.13)', blend: 'overlay', glow: '#7a3cff', filter: '' },
-  { id: 'heat', name: 'Heatwave', tint: 'rgba(255,60,20,0.18)', blend: 'overlay', glow: '#ff3c14', filter: '' },
-  { id: 'lavender', name: 'Lavender Dusk', tint: 'rgba(180,140,255,0.13)', blend: 'soft-light', glow: '#b48cff', filter: '' },
-  { id: 'mono', name: 'Mono Gold', tint: 'rgba(247,201,72,0.10)', blend: 'soft-light', glow: '#f7c948', filter: 'grayscale(0.9) sepia(0.25)' },
+export const EXPORT_SIZES = [
+  { name: 'square', w: 1080, h: 1080 },
+  { name: 'portrait', w: 1080, h: 1350 },
+  { name: 'wide', w: 1920, h: 1080 },
 ];
 
-export function gradeById(id) {
-  return GRADES.find((g) => g.id === id) || GRADES[0];
+export const GRADES = [
+  { id: 'sunset', name: 'Sunset', tint: '#ff7a2f', glow: '#ffb347', strength: 0.16 },
+  { id: 'neon', name: 'Neon Night', tint: '#ff2e88', glow: '#7b2fff', strength: 0.20 },
+  { id: 'teal', name: 'Teal Pink', tint: '#00c2a8', glow: '#ff5e8a', strength: 0.16 },
+  { id: 'golden', name: 'Golden Hour', tint: '#f5b90c', glow: '#ff8a3d', strength: 0.18 },
+  { id: 'noir', name: 'Noir', tint: '#3a3f5c', glow: '#0e0e18', strength: 0.22 },
+  { id: 'vice', name: 'Vice Blue', tint: '#2f7bff', glow: '#ff2e88', strength: 0.18 },
+  { id: 'heat', name: 'Heatwave', tint: '#ff3b1f', glow: '#ffd23d', strength: 0.17 },
+  { id: 'lavender', name: 'Lavender Dusk', tint: '#8a5cff', glow: '#ff7ad9', strength: 0.16 },
+  { id: 'mono', name: 'Mono Gold', tint: '#c9a227', glow: '#5c4a12', strength: 0.14 },
+];
+
+// Shared poster bands, as fractions of canvas height.
+export const BANDS = {
+  quote: { y: 0.014, h: 0.038 },
+  top: { y: 0.062, h: 0.405 },
+  title: { y: 0.490, h: 0.165 },
+  ribbon: { y: 0.672, h: 0.042 },
+  bottom: { y: 0.728, h: 0.212 },
+  footer: { y: 0.952, h: 0.036 },
+};
+
+// Panel spec: x/y/w/h are fractions of the canvas. `shot` picks which
+// crop of the sample to use; `hero` marks the tilted pop-out panel.
+function panel(sample, shot, role, x, y, w, h, tilt = 0, hero = false) {
+  return { sample, shot, role, x, y, w, h, tilt, hero };
 }
 
-// Slot geometry is a fraction of the canvas. Title block, ribbon and
-// footer live in the same fractional bands in every layout, so the poster
-// furniture never collides with a panel at any aspect ratio.
 export const LAYOUTS = [
   {
-    id: 'keyart', name: 'Key Art',
-    slots: [
-      { x: 0.205, y: 0.065, w: 0.52, h: 0.40, tilt: -1.5, hero: true },
-      { x: 0.02, y: 0.075, w: 0.165, h: 0.38, tilt: 0 },
-      { x: 0.745, y: 0.075, w: 0.115, h: 0.38, tilt: 0 },
-      { x: 0.87, y: 0.075, w: 0.11, h: 0.38, tilt: 0 },
-      { x: 0.02, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
-      { x: 0.345, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
-      { x: 0.67, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
+    id: 'hero', name: 'Hero Pop-Out',
+    panels: (W, H) => [
+      panel('graffiti', 'face', 'THE ARTIST', 0.018, 0.062, 0.168, 0.405),
+      panel('portrait', 'face', 'THE LOOKOUT', 0.196, 0.058, 0.562, 0.415, -1.5, true),
+      panel('pier', 'face', 'THE CAPTAIN', 0.768, 0.062, 0.108, 0.405),
+      panel('singer', 'face', 'THE SINGER', 0.886, 0.062, 0.096, 0.405),
+      panel('boulevard', 'face', 'THE DRIVER', 0.018, 0.728, 0.315, 0.212),
+      panel('pier', 'detail', 'THE CAPTAIN', 0.348, 0.728, 0.315, 0.212),
+      panel('boulevard', 'detail', 'THE DRIVER', 0.678, 0.728, 0.304, 0.212),
     ],
   },
   {
     id: 'hero3', name: 'Hero + 3',
-    slots: [
-      { x: 0.02, y: 0.07, w: 0.62, h: 0.40, tilt: -1.5, hero: true },
-      { x: 0.66, y: 0.07, w: 0.32, h: 0.40, tilt: 0 },
-      { x: 0.02, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
-      { x: 0.345, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
-      { x: 0.67, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
+    panels: (W, H) => [
+      panel('portrait', 'wide', 'THE LOOKOUT', 0.018, 0.062, 0.540, 0.405, -1, true),
+      panel('graffiti', 'face', 'THE ARTIST', 0.570, 0.062, 0.200, 0.405),
+      panel('pier', 'face', 'THE CAPTAIN', 0.782, 0.062, 0.200, 0.405),
+      panel('singer', 'face', 'THE SINGER', 0.018, 0.728, 0.315, 0.212),
+      panel('boulevard', 'face', 'THE DRIVER', 0.348, 0.728, 0.315, 0.212),
+      panel('pier', 'detail', 'THE CAPTAIN', 0.678, 0.728, 0.304, 0.212),
     ],
   },
   {
     id: 'four', name: 'Four Panel',
-    slots: [
-      { x: 0.02, y: 0.07, w: 0.47, h: 0.195, tilt: 0 },
-      { x: 0.51, y: 0.07, w: 0.47, h: 0.195, tilt: 0 },
-      { x: 0.02, y: 0.275, w: 0.47, h: 0.195, tilt: 0 },
-      { x: 0.51, y: 0.275, w: 0.47, h: 0.195, tilt: 0 },
-      { x: 0.02, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
-      { x: 0.345, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
-      { x: 0.67, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
+    panels: (W, H) => [
+      panel('portrait', 'wide', 'THE LOOKOUT', 0.018, 0.062, 0.480, 0.405),
+      panel('pier', 'wide', 'THE CAPTAIN', 0.502, 0.062, 0.480, 0.405),
+      panel('boulevard', 'wide', 'THE DRIVER', 0.018, 0.728, 0.480, 0.212),
+      panel('graffiti', 'wide', 'THE ARTIST', 0.502, 0.728, 0.480, 0.212),
     ],
   },
   {
-    id: 'fullbleed', name: 'Full Bleed',
-    slots: [
-      { x: 0.02, y: 0.07, w: 0.96, h: 0.40, tilt: 0, hero: true },
-      { x: 0.02, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
-      { x: 0.345, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
-      { x: 0.67, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
+    id: 'bleed', name: 'Full Bleed',
+    panels: (W, H) => [
+      panel('boulevard', 'wide', 'THE DRIVER', 0.0, 0.0, 1.0, 1.0),
+      panel('portrait', 'face', 'THE LOOKOUT', 0.030, 0.730, 0.280, 0.210),
+      panel('singer', 'face', 'THE SINGER', 0.690, 0.730, 0.280, 0.210),
     ],
   },
   {
     id: 'nine', name: 'Nine Panel',
-    slots: [
-      { x: 0.02, y: 0.07, w: 0.31, h: 0.13, tilt: 0 },
-      { x: 0.345, y: 0.07, w: 0.31, h: 0.13, tilt: 0 },
-      { x: 0.67, y: 0.07, w: 0.31, h: 0.13, tilt: 0 },
-      { x: 0.02, y: 0.21, w: 0.31, h: 0.13, tilt: 0 },
-      { x: 0.345, y: 0.21, w: 0.31, h: 0.13, tilt: 0 },
-      { x: 0.67, y: 0.21, w: 0.31, h: 0.13, tilt: 0 },
-      { x: 0.02, y: 0.35, w: 0.31, h: 0.12, tilt: 0 },
-      { x: 0.345, y: 0.35, w: 0.31, h: 0.12, tilt: 0 },
-      { x: 0.67, y: 0.35, w: 0.31, h: 0.12, tilt: 0 },
-    ],
+    panels: (W, H) => {
+      const out = [];
+      const tops = [
+        ['portrait', 'face', 'THE LOOKOUT'], ['graffiti', 'face', 'THE ARTIST'],
+        ['pier', 'face', 'THE CAPTAIN'], ['singer', 'face', 'THE SINGER'],
+        ['boulevard', 'face', 'THE DRIVER'], ['pier', 'detail', 'THE CAPTAIN'],
+      ];
+      tops.forEach(([s, sh, r], i) => {
+        const col = i % 3, row = Math.floor(i / 3);
+        out.push(panel(s, sh, r, 0.018 + col * 0.328, 0.062 + row * 0.205, 0.315, 0.195));
+      });
+      out.push(panel('boulevard', 'detail', 'THE DRIVER', 0.018, 0.728, 0.315, 0.212));
+      out.push(panel('graffiti', 'detail', 'THE ARTIST', 0.348, 0.728, 0.315, 0.212));
+      out.push(panel('singer', 'detail', 'THE SINGER', 0.678, 0.728, 0.304, 0.212));
+      return out;
+    },
   },
   {
-    id: 'snapshot', name: 'Snapshot',
-    slots: [
-      { x: 0.04, y: 0.08, w: 0.34, h: 0.36, tilt: -2 },
-      { x: 0.34, y: 0.06, w: 0.34, h: 0.38, tilt: 1.5, hero: true },
-      { x: 0.64, y: 0.09, w: 0.32, h: 0.36, tilt: -1 },
-      { x: 0.02, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
-      { x: 0.345, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
-      { x: 0.67, y: 0.70, w: 0.31, h: 0.225, tilt: 0 },
+    id: 'snap', name: 'Snapshot',
+    panels: (W, H) => [
+      panel('portrait', 'face', 'THE LOOKOUT', 0.060, 0.075, 0.420, 0.380, -4, true),
+      panel('pier', 'face', 'THE CAPTAIN', 0.470, 0.055, 0.300, 0.400, 3),
+      panel('boulevard', 'face', 'THE DRIVER', 0.250, 0.300, 0.420, 0.300, 2),
+      panel('graffiti', 'detail', 'THE ARTIST', 0.700, 0.330, 0.250, 0.300, -2),
+      panel('singer', 'detail', 'THE SINGER', 0.060, 0.728, 0.420, 0.212),
+      panel('pier', 'detail', 'THE CAPTAIN', 0.520, 0.728, 0.420, 0.212),
     ],
   },
 ];
@@ -111,327 +118,227 @@ export function layoutById(id) {
   return LAYOUTS.find((l) => l.id === id) || LAYOUTS[0];
 }
 
-// Assign a distinct (sample, shot) pair to every slot of a layout. The
-// hero slot always gets the portrait face close-up. Faces are used once
-// each; later slots get faceless detail shots, never from the same sample
-// as the previous slot, so no face repeats and no two neighbours show the
-// same photo. Pure function — no canvas, no DOM — so Node can sweep it.
-export function assignPanels(layoutId, heroId) {
-  const layout = layoutById(layoutId);
-  const heroSample = heroId && heroId !== 'upload' ? sampleById(heroId) : sampleById('portrait');
-  const faceOrder = ['portrait', 'graffiti', 'pier', 'singer', 'boulevard'];
-  const detailOrder = ['pier', 'boulevard', 'graffiti', 'singer', 'portrait'];
-  const usedFaces = new Set();
-  const usedPairs = new Set();
-  let detailCursor = 0;
-  const panels = [];
-  // Reserve the hero's face up front, but only when the layout actually
-  // has a hero slot: the hero slot is not always first in the slot list
-  // (Snapshot puts it second), and a face must never appear twice on one
-  // cover. Layouts without a hero slot keep all five faces available.
-  if (layout.slots.some((s) => s.hero)) {
-    usedFaces.add(heroSample.id);
-    usedPairs.add(`${heroSample.id}/face`);
-  }
-  for (const slot of layout.slots) {
-    if (slot.hero) {
-      panels.push({ slot, sampleId: heroId === 'upload' ? 'upload' : heroSample.id, shotId: 'face', hasFace: true });
-      usedFaces.add(heroSample.id);
-      usedPairs.add(`${heroSample.id}/face`);
-      continue;
-    }
-    // First pass: an unused face shot.
-    const facePick = faceOrder.find((id) => !usedFaces.has(id));
-    if (facePick) {
-      const sample = sampleById(facePick);
-      panels.push({ slot, sampleId: sample.id, shotId: 'face', hasFace: true });
-      usedFaces.add(sample.id);
-      usedPairs.add(`${sample.id}/face`);
-      continue;
-    }
-    // Then faceless detail shots, skipping the previous slot's sample.
-    let pick = null;
-    for (let i = 0; i < detailOrder.length; i += 1) {
-      const id = detailOrder[(detailCursor + i) % detailOrder.length];
-      const sample = sampleById(id);
-      const detail = sample.shots.find((s) => !s.hasFace);
-      if (!detail) continue;
-      if (usedPairs.has(`${id}/${detail.id}`)) continue;
-      const prev = panels[panels.length - 1];
-      if (prev && prev.sampleId === id) continue;
-      pick = { sample, shot: detail };
-      detailCursor = (detailCursor + i + 1) % detailOrder.length;
-      break;
-    }
-    if (!pick) {
-      const sample = sampleById(detailOrder[detailCursor % detailOrder.length]);
-      const detail = sample.shots.find((s) => !s.hasFace);
-      pick = { sample, shot: detail };
-      detailCursor += 1;
-    }
-    panels.push({ slot, sampleId: pick.sample.id, shotId: pick.shot.id, hasFace: false });
-    usedPairs.add(`${pick.sample.id}/${pick.shot.id}`);
-  }
-  return panels;
+export function gradeById(id) {
+  return GRADES.find((g) => g.id === id) || GRADES[0];
 }
 
-// Cover-fit a source window into a panel rect, keeping the aspect ratio.
-// The window is expanded (never shrunk past the face box) to match the
-// panel aspect, then clamped inside the photo. Returns pixel source rect.
-function coverWindow(base, aspect, imgW, imgH) {
-  let { x, y, w, h } = base;
-  const want = w / h;
-  if (aspect > want) {
-    const nw = Math.min(1, h * aspect);
-    const cx = x + w / 2;
-    x = Math.max(0, Math.min(1 - nw, cx - nw / 2));
-    w = nw;
-  } else {
-    const nh = Math.min(1, w / aspect);
-    const cy = y + h / 2;
-    y = Math.max(0, Math.min(1 - nh, cy - nh / 2));
-    h = nh;
+// ---- face-safe crop -------------------------------------------------
+// Returns the source rect (fractions of the image) to draw into a panel
+// of the given pixel aspect. The face box is always kept whole, with a
+// margin, even in very narrow panels: the window widens to match the
+// panel aspect instead of slicing the face.
+export function faceSafeWindow(imgW, imgH, face, shotRect, targetAspect) {
+  const m = 0.05;
+  let r = { x: shotRect.x, y: shotRect.y, w: shotRect.w, h: shotRect.h };
+  if (face) {
+    const fx0 = face.x - m, fy0 = face.y - m * 1.5;
+    const fx1 = face.x + face.w + m, fy1 = face.y + face.h + m;
+    const x0 = Math.min(r.x, fx0), y0 = Math.min(r.y, fy0);
+    const x1 = Math.max(r.x + r.w, fx1), y1 = Math.max(r.y + r.h, fy1);
+    r = { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
-  return {
-    sx: Math.round(x * imgW), sy: Math.round(y * imgH),
-    sw: Math.max(1, Math.round(w * imgW)), sh: Math.max(1, Math.round(h * imgH)),
+  const curAspect = (r.w * imgW) / (r.h * imgH);
+  if (curAspect < targetAspect) {
+    const needW = ((r.h * imgH) * targetAspect) / imgW;
+    const cx = r.x + r.w / 2;
+    r.w = needW; r.x = cx - needW / 2;
+  } else {
+    const needH = ((r.w * imgW) / targetAspect) / imgH;
+    const cy = r.y + r.h / 2;
+    r.h = needH; r.y = cy - needH / 2;
+  }
+  // Clamp inside the image; if the window is wider/taller than the
+  // image, pin it to the full frame (the face is still inside, since
+  // the window was grown around it).
+  if (r.w >= 1) { r.x = 0; r.w = 1; }
+  else { r.x = Math.max(0, Math.min(1 - r.w, r.x)); }
+  if (r.h >= 1) { r.y = 0; r.h = 1; }
+  else { r.y = Math.max(0, Math.min(1 - r.h, r.y)); }
+  return r;
+}
+
+// Pure geometry helper used by the Node face-guard sweep: for every
+// panel of a layout at a canvas size, report the source window and
+// whether the face box survives inside it.
+export function planPanels(layoutId, W, H) {
+  const def = layoutById(layoutId);
+  return def.panels(W, H).map((p) => {
+    const s = sampleById(p.sample);
+    const shot = s.shots.find((x) => x.name === p.shot) || s.shots[0];
+    const win = faceSafeWindow(1200, 1800, shot.face ? s.face : null, shot.rect, (p.w * W) / (p.h * H));
+    const faceInside = !shot.face || (
+      win.x <= s.face.x + 0.001 && win.y <= s.face.y + 0.001 &&
+      win.x + win.w >= s.face.x + s.face.w - 0.001 &&
+      win.y + win.h >= s.face.y + s.face.h - 0.001
+    );
+    return { ...p, px: { x: p.x * W, y: p.y * H, w: p.w * W, h: p.h * H }, win, faceInside };
+  });
+}
+
+// ---- rendering ------------------------------------------------------
+
+function seededRandom(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
   };
 }
 
-function drawPanel(ctx, img, panel, rect, grade, scale, overrides) {
-  // An uploaded photo has no measured face: it behaves like a sample with
-  // one full-frame shot and the upper-third default window.
-  const sample = panel.sampleId === 'upload'
-    ? { id: 'upload', role: 'THE STAR', label: 'Your photo', face: null, shots: [{ id: 'full', label: 'Full photo', rect: { x: 0, y: 0, w: 1, h: 1 }, hasFace: false }] }
-    : sampleById(panel.sampleId);
-  const shot = sample.shots.find((s) => s.id === panel.shotId) || sample.shots[0];
-  const aspect = rect.w / rect.h;
-  let base;
-  if (panel.sampleId === 'upload') {
-    base = { x: 0.04, y: 0.03, w: 0.92, h: Math.min(0.92, 0.92 / aspect) };
-  } else {
-    base = panel.hasFace ? faceSafeWindow(sample, aspect) : shot.rect;
-  }
-  // Editor overrides: zoom shrinks the window around its centre, drag
-  // shifts it. Everything stays clamped inside the photo.
-  if (overrides) {
-    const z = overrides.zoom || 1;
-    const cx = base.x + base.w / 2 + (overrides.dx || 0);
-    const cy = base.y + base.h / 2 + (overrides.dy || 0);
-    const w = Math.max(0.08, base.w / z);
-    const h = Math.max(0.08, base.h / z);
-    base = {
-      x: Math.max(0, Math.min(1 - w, cx - w / 2)),
-      y: Math.max(0, Math.min(1 - h, cy - h / 2)),
-      w, h,
-    };
-  }
-  const src = coverWindow(base, aspect, img.naturalWidth, img.naturalHeight);
+function drawPhoto(ctx, img, win, px, grade, W, H) {
+  const sx = win.x * img.naturalWidth, sy = win.y * img.naturalHeight;
+  const sw = win.w * img.naturalWidth, sh = win.h * img.naturalHeight;
+  ctx.drawImage(img, sx, sy, sw, sh, px.x, px.y, px.w, px.h);
+  // Grade tint + sky glow, clipped to the panel.
   ctx.save();
-  if (panel.slot.tilt) {
-    ctx.translate(rect.x + rect.w / 2, rect.y + rect.h / 2);
-    ctx.rotate((panel.slot.tilt * Math.PI) / 180);
-    ctx.translate(-rect.w / 2, -rect.h / 2);
-    rect = { x: 0, y: 0, w: rect.w, h: rect.h };
-  }
-  // Layered drop shadow for the pop-out depth.
-  ctx.shadowColor = 'rgba(0,0,0,0.55)';
-  ctx.shadowBlur = 18 * scale;
-  ctx.shadowOffsetY = 8 * scale;
-  ctx.fillStyle = '#12081f';
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.shadowColor = 'transparent';
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-  // Photo, cover-fit, with the grade's filter (noir / mono gold).
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(rect.x, rect.y, rect.w, rect.h);
-  ctx.clip();
-  if (grade.filter) ctx.filter = grade.filter;
-  ctx.drawImage(img, src.sx, src.sy, src.sw, src.sh, rect.x, rect.y, rect.w, rect.h);
-  ctx.filter = 'none';
-  // Grade tint.
-  ctx.globalCompositeOperation = grade.blend;
-  ctx.globalAlpha = 0.9;
-  ctx.fillStyle = grade.tint;
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.beginPath(); ctx.rect(px.x, px.y, px.w, px.h); ctx.clip();
+  ctx.globalCompositeOperation = 'soft-light';
+  ctx.fillStyle = grade.tint; ctx.globalAlpha = grade.strength;
+  ctx.fillRect(px.x, px.y, px.w, px.h);
   ctx.globalCompositeOperation = 'source-over';
-  ctx.globalAlpha = 1;
-  // Faint halftone over the photo, so panels read as printed poster art.
-  ctx.globalAlpha = 0.05;
-  ctx.fillStyle = halftonePattern(ctx, 3, 9, 1);
-  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.globalAlpha = 1;
-  ctx.restore();
-  // Ink frame: thick gold band + inner dark line + 1px pale outline.
-  ctx.lineWidth = Math.max(2, 3 * scale);
-  ctx.strokeStyle = '#f2b705';
-  ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.lineWidth = Math.max(1, 1 * scale);
-  ctx.strokeStyle = 'rgba(13,4,22,0.9)';
-  ctx.strokeRect(rect.x + 4 * scale, rect.y + 4 * scale, rect.w - 8 * scale, rect.h - 8 * scale);
-  ctx.strokeStyle = 'rgba(255,255,255,0.14)';
-  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
-  // Role tag, top-left inside the frame, shrunk to fit narrow panels.
-  drawRoleTag(ctx, sample.role, rect.x + 6 * scale, rect.y + 6 * scale, scale, rect.w - 12 * scale);
+  const glow = ctx.createLinearGradient(px.x, px.y, px.x, px.y + px.h * 0.55);
+  glow.addColorStop(0, grade.glow); glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalAlpha = 0.22; ctx.fillStyle = glow;
+  ctx.fillRect(px.x, px.y, px.w, px.h * 0.55);
   ctx.restore();
 }
 
-// The whole poster. `images` maps sample id -> loaded HTMLImageElement.
-// `state` = { layoutId, gradeId, title, subtitle, overrides: {slotIndex: {zoom,dx,dy}} }.
-export function renderCover(canvas, images, state) {
-  const W = canvas.width;
-  const H = canvas.height;
-  const ctx = canvas.getContext('2d');
-  const scale = Math.min(W, H) / 720;
-  const grade = gradeById(state.gradeId);
-  const panels = assignPanels(state.layoutId, state.heroSample);
-  // Editor shot cycling: replace a panel's shot with the cycled one, but
-  // never let a face appear twice — a cycled face shot is skipped if that
-  // face is already on the cover.
-  if (state.shotCycle) {
-    panels.forEach((panel, i) => {
-      const cycle = state.shotCycle[i];
-      if (cycle == null || panel.sampleId === 'upload') return;
-      const sample = sampleById(panel.sampleId);
-      const shot = sample.shots[cycle % sample.shots.length];
-      if (shot.hasFace) {
-        // A face may appear only once: block the cycle if another panel
-        // already shows this sample's face.
-        const clash = panels.some((p, j) => j !== i && p.hasFace && p.sampleId === panel.sampleId);
-        if (clash) return;
-      }
-      panel.shotId = shot.id;
-      panel.hasFace = shot.hasFace;
-    });
-  }
-
-  // Deep violet ground.
-  ctx.fillStyle = '#1b0f2a';
-  ctx.fillRect(0, 0, W, H);
-  // Sky glow behind the art, in the grade's colour.
-  const glow = ctx.createRadialGradient(W * 0.5, H * 0.28, 10, W * 0.5, H * 0.28, W * 0.75);
-  glow.addColorStop(0, grade.glow + '55');
-  glow.addColorStop(1, 'rgba(27,15,42,0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
-
-  // Quote bar + volume chip (chip pinned by its right edge, 2% in).
-  drawQuoteBar(ctx, QUOTE, W * 0.02, H * 0.032, W * 0.7, scale, FONTS);
-  drawVolumeChip(ctx, 'VOL. 1', W * 0.98, H * 0.018, scale);
-
-  // Panels.
-  panels.forEach((panel, i) => {
-    const s = panel.slot;
-    const rect = { x: s.x * W, y: s.y * H, w: s.w * W, h: s.h * H };
-    const img = images[panel.sampleId];
-    if (!img) return;
-    const overrides = state.overrides ? state.overrides[i] : null;
-    drawPanel(ctx, img, panel, rect, grade, scale, overrides);
-  });
-
-  // Hero chip, pinned to the hero panel's top-right corner (measured so
-  // the right edge lands exactly at the panel's right edge).
-  const hero = panels.find((p) => p.slot.hero);
-  if (hero) {
-    const hx = (hero.slot.x + hero.slot.w) * W;
-    const hy = hero.slot.y * H;
-    ctx.save();
-    ctx.font = `700 ${Math.round(13 * scale)}px ${FONTS.display}`;
-    const chipW = ctx.measureText('SUNSET EDITION').width + 18 * scale;
-    ctx.restore();
-    drawChip(ctx, 'SUNSET EDITION', hx - chipW - 6 * scale, hy + 6 * scale, scale, FONTS);
-  }
-
-  // Halftone title block.
-  const tb = { x: W * 0.055, y: H * 0.485, w: W * 0.89, h: H * 0.15 };
+function inkFrame(ctx, px, hero) {
   ctx.save();
-  ctx.fillStyle = '#160a24';
-  ctx.fillRect(tb.x, tb.y, tb.w, tb.h);
-  ctx.globalAlpha = 0.10;
-  ctx.fillStyle = halftonePattern(ctx, 4, 11, 1);
-  ctx.fillRect(tb.x, tb.y, tb.w, tb.h);
-  ctx.globalAlpha = 1;
-  ctx.lineWidth = Math.max(2, 2.5 * scale);
-  ctx.strokeStyle = '#f2b705';
-  ctx.strokeRect(tb.x, tb.y, tb.w, tb.h);
-  ctx.restore();
-  // Chrome title, centred once; subtitle right under it in neon script.
-  // Baseline at 74% of the block so the caps clear the top edge with
-  // margin and the extrusion clears the bottom; the width passed is the
-  // smaller of the block width and a height-derived bound, so the title
-  // never overflows the block at any aspect ratio.
-  const titleTop = tb.y + tb.h * 0.74;
-  drawChromeTitle(ctx, state.title || TITLE, W / 2, titleTop, Math.min(W * 0.86, H * 0.88), FONTS);
-  drawNeonSubtitle(ctx, state.subtitle || SUBTITLE, W / 2, tb.y + tb.h * 0.88, Math.max(16, 26 * scale), FONTS);
-
-  // Ribbon.
-  drawRibbon(ctx, RIBBON, W / 2, H * 0.645, W * 0.56, H * 0.038, FONTS);
-
-  // Footer: barcode + COMING SOON left, billing centred, seal right.
-  const fy = H * 0.94;
-  drawBarcode(ctx, W * 0.02, fy, W * 0.085, H * 0.045);
-  ctx.save();
-  ctx.fillStyle = '#f2b705';
-  ctx.font = `700 ${Math.round(13 * scale)}px ${FONTS.display}`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('COMING SOON', W * 0.115, fy + H * 0.022);
-  ctx.restore();
-  drawBilling(ctx, [BILLING, BILLING_2], W / 2, fy + H * 0.012, W * 0.6, scale);
-  drawSeal(ctx, W * 0.955, fy + H * 0.022, H * 0.026);
-
-  // Grain + vignette over everything, faint.
-  const grain = document.createElement('canvas');
-  grain.width = 140;
-  grain.height = 140;
-  const g = grain.getContext('2d');
-  const data = g.createImageData(140, 140);
-  for (let i = 0; i < data.data.length; i += 4) {
-    const v = Math.floor(Math.random() * 255);
-    data.data[i] = v; data.data[i + 1] = v; data.data[i + 2] = v;
-    data.data[i + 3] = 14;
-  }
-  g.putImageData(data, 0, 0);
-  ctx.save();
-  ctx.globalAlpha = 0.5;
-  ctx.fillStyle = ctx.createPattern(grain, 'repeat');
-  ctx.fillRect(0, 0, W, H);
-  ctx.restore();
-  const vig = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42, W / 2, H / 2, Math.max(W, H) * 0.72);
-  vig.addColorStop(0, 'rgba(0,0,0,0)');
-  vig.addColorStop(1, 'rgba(0,0,0,0.32)');
-  ctx.fillStyle = vig;
-  ctx.fillRect(0, 0, W, H);
-  return { panels, grade: grade.id };
-}
-
-// Node-side sweep: does every layout keep every face whole? Returns a list
-// of failures (empty = all good). Used by the build's own verification.
-export function faceGuardSweep() {
-  const failures = [];
-  const aspects = [1, 4 / 5, 16 / 9, 3 / 4, 9 / 16, 2 / 3, 3 / 2];
-  for (const layout of LAYOUTS) {
-    const panels = assignPanels(layout.id);
-    const seenFaces = new Set();
-    for (const panel of panels) {
-      if (!panel.hasFace) continue;
-      if (seenFaces.has(panel.sampleId)) {
-        failures.push(`${layout.id}: face ${panel.sampleId} twice`);
-      }
-      seenFaces.add(panel.sampleId);
-      const sample = sampleById(panel.sampleId);
-      for (const aspect of aspects) {
-        const win = faceSafeWindow(sample, aspect);
-        const f = sample.face;
-        const inside =
-          win.x <= f.x + 0.001 && win.y <= f.y + 0.001 &&
-          win.x + win.w >= f.x + f.w - 0.001 &&
-          win.y + win.h >= f.y + f.h - 0.001;
-        if (!inside) failures.push(`${layout.id}: ${panel.sampleId} face cut at aspect ${aspect}`);
-      }
+  ctx.lineJoin = 'miter';
+  ctx.strokeStyle = '#12061c'; ctx.lineWidth = hero ? 7 : 5;
+  ctx.strokeRect(px.x + 1, px.y + 1, px.w - 2, px.h - 2);
+  ctx.strokeStyle = '#f5b90c'; ctx.lineWidth = hero ? 3 : 2;
+  ctx.strokeRect(px.x + 5, px.y + 5, px.w - 10, px.h - 10);
+  // Halftone dots, faint, along the inner edge.
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  const step = 14;
+  for (let y = px.y + 12; y < px.y + px.h - 8; y += step) {
+    for (let x = px.x + 12; x < px.x + px.w - 8; x += step) {
+      if ((x + y) % (step * 2) === 0) ctx.fillRect(x, y, 1.6, 1.6);
     }
   }
-  return failures;
+  ctx.restore();
 }
+
+function grainAndVignette(ctx, W, H) {
+  const rnd = seededRandom(W * 7919 + H * 104729);
+  ctx.save();
+  ctx.globalAlpha = 0.05;
+  ctx.fillStyle = '#ffffff';
+  for (let i = 0; i < 900; i++) {
+    ctx.fillRect(rnd() * W, rnd() * H, 1.4, 1.4);
+  }
+  ctx.globalAlpha = 0.05;
+  ctx.fillStyle = '#000000';
+  for (let i = 0; i < 900; i++) {
+    ctx.fillRect(rnd() * W, rnd() * H, 1.4, 1.4);
+  }
+  ctx.restore();
+  const v = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.42, W / 2, H / 2, Math.max(W, H) * 0.75);
+  v.addColorStop(0, 'rgba(10,4,18,0)');
+  v.addColorStop(1, 'rgba(10,4,18,0.42)');
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// Assign distinct (sample, shot) pairs to panels. A face shot of a
+// sample is used at most once per cover; repeats fall back to that
+// sample's faceless detail shot, which is itself used at most once.
+export function assignPanels(layoutId, W, H, overrides = {}) {
+  const def = layoutById(layoutId);
+  const raw = def.panels(W, H);
+  const usedFace = new Set();
+  const usedPair = new Set();
+  return raw.map((p, i) => {
+    const ov = overrides[i];
+    let sample = ov?.sample || p.sample;
+    let shotName = ov?.shot || p.shot;
+    const s = sampleById(sample);
+    let shot = s.shots.find((x) => x.name === shotName) || s.shots[0];
+    if (shot.face && usedFace.has(sample)) {
+      shot = s.shots.find((x) => !x.face) || shot;
+    }
+    if (usedPair.has(sample + ':' + shot.name)) {
+      const alt = s.shots.find((x) => x.name !== shot.name && !usedPair.has(sample + ':' + x.name));
+      if (alt) shot = alt;
+    }
+    if (shot.face) usedFace.add(sample);
+    usedPair.add(sample + ':' + shot.name);
+    return { ...p, sample, shot: shot.name, shotRect: shot.rect, face: shot.face ? s.face : null, faceShot: shot.face, override: ov || null };
+  });
+}
+
+export function renderCover(canvas, opts) {
+  const { layout = 'hero', grade = 'sunset', title = 'NEON COAST', subtitle = 'Paid in Sunsets',
+    images, overrides = {} } = opts;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const g = gradeById(grade);
+
+  // Deep violet backdrop with a warm horizon glow.
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#1c0b2a'); bg.addColorStop(0.55, '#160818'); bg.addColorStop(1, '#0e0416');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  const horizon = ctx.createRadialGradient(W * 0.5, H * 0.08, 10, W * 0.5, H * 0.08, W * 0.62);
+  horizon.addColorStop(0, 'rgba(255,150,60,0.20)'); horizon.addColorStop(1, 'rgba(255,150,60,0)');
+  ctx.fillStyle = horizon; ctx.fillRect(0, 0, W, H * 0.4);
+
+  const panels = assignPanels(layout, W, H, overrides);
+  const bleed = layout === 'bleed';
+  for (const p of panels) {
+    const img = images.get(p.sample);
+    if (!img) continue;
+    const px = { x: p.x * W, y: p.y * H, w: p.w * W, h: p.h * H };
+    const aspect = px.w / px.h;
+    let win = faceSafeWindow(img.naturalWidth, img.naturalHeight, p.face, p.shotRect, aspect);
+    if (p.override?.zoom && p.override.zoom !== 1) {
+      const z = p.override.zoom;
+      const cw = win.w / z, ch = win.h / z;
+      win = { x: win.x + (win.w - cw) / 2 + (p.override.dx || 0), y: win.y + (win.h - ch) / 2 + (p.override.dy || 0), w: cw, h: ch };
+      win.x = Math.max(0, Math.min(1 - win.w, win.x));
+      win.y = Math.max(0, Math.min(1 - win.h, win.y));
+    }
+    ctx.save();
+    if (p.hero || p.tilt) {
+      ctx.translate(px.x + px.w / 2, px.y + px.h / 2);
+      ctx.rotate(((p.tilt || 0) * Math.PI) / 180);
+      ctx.translate(-(px.x + px.w / 2), -(px.y + px.h / 2));
+      // Layered drop shadow for the pop-out hero.
+      ctx.shadowColor = 'rgba(0,0,0,0.55)';
+      ctx.shadowBlur = 26; ctx.shadowOffsetY = 12;
+    }
+    if (bleed && p.sample === 'boulevard' && p.shot === 'wide') {
+      drawPhoto(ctx, img, win, { x: 0, y: 0, w: W, h: H }, g, W, H);
+      ctx.fillStyle = 'rgba(12,4,20,0.28)'; ctx.fillRect(0, 0, W, H);
+    } else {
+      drawPhoto(ctx, img, win, px, g, W, H);
+      inkFrame(ctx, px, p.hero);
+      drawRoleTag(ctx, p.role, px);
+      if (p.hero) {
+        // Gold edition chip, top-right of the hero panel.
+        const chipText = 'SUNSET EDITION';
+        const cfs = Math.max(10, Math.min(px.h * 0.075, W * 0.014));
+        ctx.save();
+        ctx.font = `700 ${cfs}px Anton, sans-serif`;
+        const ctw = ctx.measureText(chipText).width;
+        const cpad = cfs * 0.7;
+        const chh = cfs * 1.6;
+        const cx0 = px.x + px.w - ctw - cpad * 2 - 8;
+        ctx.fillStyle = GOLD;
+        ctx.fillRect(cx0, px.y + 8, ctw + cpad * 2, chh);
+        ctx.fillStyle = '#1a0b00';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(chipText, cx0 + cpad, px.y + 8 + chh / 2);
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+  }
+
+  drawPosterFurniture(ctx, W, H, { title, subtitle, layout });
+  grainAndVignette(ctx, W, H);
+  return { panels, grade: g.id };
+}
+
+export { SAMPLES };

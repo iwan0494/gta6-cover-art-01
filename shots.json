@@ -1,1 +1,36 @@
-{"scenes":[{"description":"The exported Key Art cover, full-bleed, landscape 1280x720.","id":"cover","url":"app/index.html?shot=cover&w=1280&h=720"},{"description":"The editor with a photo loaded: controls left, live cover centre.","id":"editor","url":"app/index.html?shot=editor"},{"description":"The exported Key Art cover, portrait 1024x1280.","id":"cover-portrait","url":"app/index.html?shot=cover&w=1024&h=1280&grade=neon"},{"description":"The Hero Pop-Out cover, square 1080x1080.","id":"cover-square","url":"app/index.html?shot=cover&w=1080&h=1080&layout=hero3&grade=golden"}]}
+{
+  "scenes": [
+    {
+      "id": "cover",
+      "url": "app/index.html?shot=cover&layout=hero&w=1280&h=720",
+      "file": "screenshots/1-cover.jpg",
+      "width": 1280,
+      "height": 720,
+      "note": "Hero Pop-Out cover, landscape — the key art."
+    },
+    {
+      "id": "editor",
+      "url": "app/index.html?shot=editor&w=1280&h=720",
+      "file": "screenshots/2-editor.jpg",
+      "width": 1280,
+      "height": 720,
+      "note": "Editor with the sample photos loaded."
+    },
+    {
+      "id": "cover-portrait",
+      "url": "app/index.html?shot=cover&layout=hero&w=1024&h=1280",
+      "file": "screenshots/3-cover-portrait.jpg",
+      "width": 1024,
+      "height": 1280,
+      "note": "Hero Pop-Out cover, portrait — faces stay whole in narrow panels."
+    },
+    {
+      "id": "cover-square",
+      "url": "app/index.html?shot=cover&layout=hero&w=1080&h=1080",
+      "file": "screenshots/4-cover-square.jpg",
+      "width": 1080,
+      "height": 1080,
+      "note": "Hero Pop-Out cover, square post size."
+    }
+  ]
+}

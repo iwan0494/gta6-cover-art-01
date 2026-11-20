@@ -1,96 +1,65 @@
-// shots.js — the ?shot= scenes. The app has two scenes: the editor (the
-// tool itself, with a photo loaded) and the cover (the exported poster,
-// full-bleed). Automated captures drive them with ?shot=editor and
-// ?shot=cover, plus ?w= / ?h= for the canvas size and ?layout= / ?grade=
-// to pick a variant. When the scene is ready it sets data-shot-ready on
-// <html> so a capture script knows the frame is final.
+// shots.js — deterministic screenshot modes for the submission dossier.
+// ?shot=cover  renders the full poster on a bare canvas (no editor UI).
+// ?shot=editor renders the editor with the sample photos loaded.
+// Both set window.__shotReady = true once the canvas has painted, so a
+// headless browser can wait for the exact frame instead of guessing.
 
-import { SAMPLES } from './faces.js';
-import { renderCover } from './cover.js';
-import { bootEditor, freshState, EXPORT_SIZES } from './editor.js';
+import { renderPreview, defaultState } from './editor.js';
+import { EXPORT_SIZES } from './cover.js';
 
-function params() {
-  return new URLSearchParams(window.location.search);
+function markReady() {
+  window.__shotReady = true;
+  document.title = 'shot-ready';
 }
 
-async function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error(`could not load ${src}`));
-    img.src = src;
-  });
+function fitCanvas(canvas, w, h) {
+  canvas.width = w;
+  canvas.height = h;
+  canvas.style.width = w + 'px';
+  canvas.style.height = h + 'px';
 }
 
-async function loadFont(name, url) {
-  try {
-    const face = new FontFace(name, `url(${url})`);
-    const loaded = await face.load();
-    document.fonts.add(loaded);
-  } catch (err) {
-    console.warn('font failed to load', name, err);
+export function bootShots() {
+  const params = new URLSearchParams(location.search);
+  const mode = params.get('shot');
+  if (!mode) return false;
+  const state = defaultState();
+  const w = parseInt(params.get('w') || '1280', 10);
+  const h = parseInt(params.get('h') || '720', 10);
+
+  if (mode === 'cover') {
+    const layout = params.get('layout') || 'hero';
+    state.layout = layout;
+    document.body.classList.add('shot-cover');
+    const holder = document.getElementById('shot-holder');
+    const canvas = document.createElement('canvas');
+    canvas.id = 'shot-canvas';
+    fitCanvas(canvas, w, h);
+    holder.appendChild(canvas);
+    // Paint twice: once after fonts arrive, once more to be safe.
+    const paint = () => renderPreview(canvas, state);
+    document.fonts.ready.then(() => { paint(); setTimeout(() => { paint(); markReady(); }, 120); });
+    setTimeout(() => { if (!window.__shotReady) { paint(); markReady(); } }, 2500);
+    return true;
   }
-}
 
-export const SCENES = {
-  editor: {
-    description: 'The editor with a photo loaded: controls left, live cover centre.',
-    run: async () => {
-      await bootEditor(document.querySelector('#app'));
-    },
-  },
-  cover: {
-    description: 'The exported cover, full-bleed, at the requested size.',
-    run: async () => {
-      const q = params();
-      const w = Math.max(480, Math.min(1920, Number(q.get('w')) || 1280));
-      const h = Math.max(480, Math.min(1920, Number(q.get('h')) || 720));
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      canvas.id = 'cover-shot';
-      canvas.style.display = 'block';
-      canvas.style.width = '100vw';
-      canvas.style.height = '100vh';
-      canvas.style.objectFit = 'contain';
-      document.body.innerHTML = '';
-      document.body.appendChild(canvas);
-      document.body.style.margin = '0';
-      document.body.style.background = '#1b0f2a';
-      await Promise.all([
-        loadFont('Anton', 'fonts/Anton-Regular.ttf'),
-        loadFont('Pacifico', 'fonts/Pacifico-Regular.ttf'),
-      ]);
-      const images = {};
-      for (const sample of SAMPLES) {
-        try {
-          images[sample.id] = await loadImage(sample.src);
-        } catch (err) {
-          console.warn('sample failed', sample.id, err);
-        }
-      }
-      await document.fonts.ready;
-      const state = freshState();
-      state.layoutId = q.get('layout') || 'keyart';
-      state.gradeId = q.get('grade') || 'sunset';
-      state.title = q.get('title') || 'NEON COAST';
-      state.subtitle = q.get('subtitle') || 'Paid in Sunsets';
-      renderCover(canvas, images, state);
-    },
-  },
-};
-
-export async function runShot() {
-  const q = params();
-  const name = q.get('shot') || 'editor';
-  const scene = SCENES[name] || SCENES.editor;
-  try {
-    await scene.run();
-  } catch (err) {
-    console.error('shot failed', name, err);
+  if (mode === 'editor') {
+    document.body.classList.add('shot-editor');
+    const canvas = document.getElementById('preview');
+    if (canvas) {
+      fitCanvas(canvas, w, h);
+      // Build the rail UI too, so the shot shows the real editor.
+      if (typeof window.__buildEditorUI === 'function') window.__buildEditorUI();
+      renderPreview(canvas, state);
+      document.fonts.ready.then(() => {
+        renderPreview(canvas, state);
+        setTimeout(markReady, 150);
+      });
+      setTimeout(() => { if (!window.__shotReady) markReady(); }, 2500);
+    }
+    return true;
   }
-  document.documentElement.setAttribute('data-shot-ready', 'true');
-  window.dispatchEvent(new Event('shot-ready'));
+  return false;
 }
 
 export { EXPORT_SIZES };

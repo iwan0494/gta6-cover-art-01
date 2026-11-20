@@ -1,39 +1,43 @@
-// main.ts — the entrypoint of Neon Coast Cover Studio (Node 22).
-// It copies the offline web app (app/) and its screenshots into the output
-// directory and writes dossier.json through the kit's buildDossier, under
-// the competition's own gate caps. Run it twice: the output is byte for
-// byte identical, because the dossier is canonical JSON.
+// Neon Coast Cover Studio — submission program (Node 22, stdlib only).
+//
+// What it hands in: a copy of app/ (the offline browser app) and
+// screenshots/ (the four dossier frames), plus dossier.json built by
+// the vendored make.fun library. The grader reads /output; outside
+// the grader, MAKEFUN_OUTPUT_DIR stands in for it:
 //
 //   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+//
+// Gate limits (competition.yaml / reference/gate.json): app/ at most
+// 993 files and 48 MiB, paths at most 1000 bytes, index.html at most
+// 1 MiB, 3-4 screenshots at most 256 KiB each, dossier at most 1.5 MiB
+// with at most 160 KiB of text.
 
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-app.ts';
 
-// The gate's own caps (competition.yaml, reference/gate.json): the app is
-// at most 993 files and 48 MiB, each path at most 1000 bytes, at most four
-// screenshots of 256 KiB, the dossier's text at most 160 KiB.
-const CAPS = {
-  text_max_bytes: 160 * 1024,
-  screenshots: { max: 4, max_bytes: 256 * 1024 },
-  app_max_files: 993,
-  app_max_bytes: 48 * 1024 * 1024,
-  app_path_max_bytes: 1000,
-};
+const repoRoot = fileURLToPath(new URL('.', import.meta.url));
+const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const outDir = resolve(process.env.MAKEFUN_OUTPUT_DIR || join(here, 'out'));
+// Start from a clean output dir so a stale file can never leak in.
+rmSync(outDir, { recursive: true, force: true });
+mkdirSync(outDir, { recursive: true });
 
-for (const name of ['app', 'screenshots']) {
-  const src = join(here, name);
-  if (!existsSync(src)) {
-    throw new Error(`main.ts: missing ${name}/ next to main.ts`);
-  }
-  cpSync(src, join(outDir, name), { recursive: true });
+const appOut = join(outDir, 'app');
+cpSync(join(repoRoot, 'app'), appOut, { recursive: true });
+
+const shotsOut = join(outDir, 'screenshots');
+mkdirSync(shotsOut, { recursive: true });
+if (existsSync(join(repoRoot, 'screenshots'))) {
+  cpSync(join(repoRoot, 'screenshots'), shotsOut, { recursive: true });
 }
 
-mkdirSync(outDir, { recursive: true });
-const dossier = buildDossier(outDir, CAPS);
+const dossier = buildDossier(outDir, {
+  text_max_bytes: 163840,
+  screenshots: { max: 4, max_bytes: 262144 },
+  app_max_files: 993,
+  app_max_bytes: 50331648,
+  app_path_max_bytes: 1000,
+});
 writeFileSync(join(outDir, 'dossier.json'), dossier);
-console.log(`wrote ${join(outDir, 'dossier.json')} (${dossier.length} bytes)`);
