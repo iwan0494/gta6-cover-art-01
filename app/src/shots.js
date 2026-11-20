@@ -1,71 +1,96 @@
-// Neon Coast Cover Studio — screenshot modes.
-//
-// ?shot=cover   renders the cover full-bleed, no editor chrome.
-// ?shot=editor  opens the editor with the default cast loaded.
-// ?shot=portrait / ?shot=square render the cover at those sizes.
-// Every mode sets window.__shotReady once the canvas has painted, so a
-// headless screenshot script can wait for it instead of guessing.
+// shots.js — the ?shot= scenes. The app has two scenes: the editor (the
+// tool itself, with a photo loaded) and the cover (the exported poster,
+// full-bleed). Automated captures drive them with ?shot=editor and
+// ?shot=cover, plus ?w= / ?h= for the canvas size and ?layout= / ?grade=
+// to pick a variant. When the scene is ready it sets data-shot-ready on
+// <html> so a capture script knows the frame is final.
 
-import { createEditor } from "./editor.js";
-import { renderCover, defaultState } from "./cover.js";
-import { CAST } from "./faces.js";
+import { SAMPLES } from './faces.js';
+import { renderCover } from './cover.js';
+import { bootEditor, freshState, EXPORT_SIZES } from './editor.js';
 
-const params = new URLSearchParams(location.search);
-const mode = params.get("shot") || "editor";
-
-function loadAll() {
-  return Promise.all(
-    CAST.map(
-      (p) =>
-        new Promise((resolve) => {
-          const img = new Image();
-          img.onload = () => resolve([p.id, img]);
-          img.onerror = () => resolve([p.id, null]);
-          img.src = p.src;
-        })
-    )
-  ).then((pairs) => new Map(pairs.filter(([, img]) => img)));
+function params() {
+  return new URLSearchParams(window.location.search);
 }
 
-function finish() {
-  window.__shotReady = true;
-  document.title = document.title + " — shot ready";
-}
-
-if (mode === "cover" || mode === "portrait" || mode === "square") {
-  const sizes = { cover: [1280, 720], portrait: [1024, 1280], square: [1080, 1080] };
-  const [W, H] = sizes[mode] || sizes.cover;
-  const grade = params.get("grade") || "sunset";
-  const layout = params.get("layout") || "keyart";
-  const canvas = document.getElementById("cover");
-  canvas.width = W;
-  canvas.height = H;
-  canvas.style.width = "100vw";
-  canvas.style.height = "100vh";
-  document.body.classList.add("cover-mode");
-  // The canvas lives inside #editor-ui, so hide the chrome around it —
-  // never the container itself.
-  document.querySelector(".topbar").style.display = "none";
-  document.querySelector(".controls").style.display = "none";
-  document.querySelector(".stage .hint").style.display = "none";
-  const main = document.getElementById("editor-ui");
-  main.style.display = "block";
-  main.style.padding = "0";
-  main.style.gap = "0";
-  Promise.all([loadAll(), document.fonts.load('90px Anton'), document.fonts.load('40px Pacifico')]).then(([images]) => {
-    const state = { ...defaultState(), grade, layout };
-    renderCover(canvas.getContext("2d"), W, H, state, images);
-    requestAnimationFrame(finish);
-  });
-} else {
-  const canvas = document.getElementById("cover");
-  canvas.width = 1280;
-  canvas.height = 720;
-  const editor = createEditor(canvas);
-  window.__editor = editor;
-  Promise.all([editor.ready, document.fonts.load('90px Anton'), document.fonts.load('40px Pacifico')]).then(() => {
-    // Fonts arriving late would repaint the title in fallback; redraw once loaded.
-    editor.setState(editor.state);
-    requestAnimationFrame(finish);
+async function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`could not load ${src}`));
+    img.src = src;
   });
 }
+
+async function loadFont(name, url) {
+  try {
+    const face = new FontFace(name, `url(${url})`);
+    const loaded = await face.load();
+    document.fonts.add(loaded);
+  } catch (err) {
+    console.warn('font failed to load', name, err);
+  }
+}
+
+export const SCENES = {
+  editor: {
+    description: 'The editor with a photo loaded: controls left, live cover centre.',
+    run: async () => {
+      await bootEditor(document.querySelector('#app'));
+    },
+  },
+  cover: {
+    description: 'The exported cover, full-bleed, at the requested size.',
+    run: async () => {
+      const q = params();
+      const w = Math.max(480, Math.min(1920, Number(q.get('w')) || 1280));
+      const h = Math.max(480, Math.min(1920, Number(q.get('h')) || 720));
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.id = 'cover-shot';
+      canvas.style.display = 'block';
+      canvas.style.width = '100vw';
+      canvas.style.height = '100vh';
+      canvas.style.objectFit = 'contain';
+      document.body.innerHTML = '';
+      document.body.appendChild(canvas);
+      document.body.style.margin = '0';
+      document.body.style.background = '#1b0f2a';
+      await Promise.all([
+        loadFont('Anton', 'fonts/Anton-Regular.ttf'),
+        loadFont('Pacifico', 'fonts/Pacifico-Regular.ttf'),
+      ]);
+      const images = {};
+      for (const sample of SAMPLES) {
+        try {
+          images[sample.id] = await loadImage(sample.src);
+        } catch (err) {
+          console.warn('sample failed', sample.id, err);
+        }
+      }
+      await document.fonts.ready;
+      const state = freshState();
+      state.layoutId = q.get('layout') || 'keyart';
+      state.gradeId = q.get('grade') || 'sunset';
+      state.title = q.get('title') || 'NEON COAST';
+      state.subtitle = q.get('subtitle') || 'Paid in Sunsets';
+      renderCover(canvas, images, state);
+    },
+  },
+};
+
+export async function runShot() {
+  const q = params();
+  const name = q.get('shot') || 'editor';
+  const scene = SCENES[name] || SCENES.editor;
+  try {
+    await scene.run();
+  } catch (err) {
+    console.error('shot failed', name, err);
+  }
+  document.documentElement.setAttribute('data-shot-ready', 'true');
+  window.dispatchEvent(new Event('shot-ready'));
+}
+
+export { EXPORT_SIZES };

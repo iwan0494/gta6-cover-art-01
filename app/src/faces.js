@@ -1,139 +1,124 @@
-// Neon Coast Cover Studio — sample cast and face-safe shot catalogue.
-//
-// Every face box below was measured by looking at the photo itself, as
-// fractions of the image (x, y, w, h). A "shot" is a crop window into one
-// photo. Face shots always keep the whole face inside the frame; detail
-// shots carry no face at all. Nothing here is read from an earlier build:
-// the boxes were re-measured in this session from the photos as they are.
-//
-// Licences (credits also in README.md):
-//   boulevard, pier — kit starter photos
-//   graffiti — "Graffiti Portrait Bülowstraße Berlin-Schöneberg", CC0, Wikimedia Commons
-//   portrait — "Smiling senior woman with curly hair portrait", CC BY 2.0, Wikimedia Commons
-//   singer — "Jack Johnson 2014", CC BY-SA 4.0, photo by @Photocyclone, Wikimedia Commons
+// faces.js — measured face boxes and per-photo shot lists for the five
+// sample photos of Neon Coast Cover Studio. Every box is a fraction of the
+// photo (0..1), measured by looking at the photo itself. A "shot" is one
+// crop rectangle of a photo; face shots always contain the whole face box
+// with a margin, detail shots never contain a face, so a face can never be
+// repeated or cut at the neck or at a panel edge in any layout.
 
-export const CAST = [
+export const SAMPLES = [
   {
-    id: "boulevard",
-    src: "samples/boulevard.jpg",
-    role: "THE DRIVER",
-    face: { x: 0.29, y: 0.04, w: 0.25, h: 0.22 },
+    id: 'boulevard',
+    src: 'samples/boulevard.jpg',
+    label: 'The Driver',
+    role: 'THE DRIVER',
+    // Woman in sunglasses leaning on a red convertible, boulevard at sunset.
+    face: { x: 0.27, y: 0.02, w: 0.33, h: 0.25 },
     shots: [
-      { id: "face", label: "Driver close-up", face: true, focus: { x: 0.42, y: 0.15 } },
-      { id: "full", label: "Driver and car", face: true, focus: { x: 0.45, y: 0.45 } },
-      { id: "car", label: "Red car detail", face: false, focus: { x: 0.22, y: 0.78 } },
-      { id: "palms", label: "Palm boulevard", face: false, focus: { x: 0.12, y: 0.3 } },
+      { id: 'face', label: 'Face', rect: { x: 0.2, y: 0.0, w: 0.5, h: 0.34 }, hasFace: true },
+      { id: 'figure', label: 'Figure + car', rect: { x: 0.0, y: 0.0, w: 1.0, h: 1.0 }, hasFace: true },
+      { id: 'car', label: 'Red car detail', rect: { x: 0.0, y: 0.52, w: 0.5, h: 0.48 }, hasFace: false },
+      { id: 'palms', label: 'Palm street', rect: { x: 0.0, y: 0.0, w: 0.42, h: 0.3 }, hasFace: false },
     ],
   },
   {
-    id: "pier",
-    src: "samples/pier.jpg",
-    role: "THE CAPTAIN",
-    face: { x: 0.26, y: 0.1, w: 0.32, h: 0.3 },
+    id: 'pier',
+    src: 'samples/pier.jpg',
+    label: 'The Captain',
+    role: 'THE CAPTAIN',
+    // Older man in a bucket hat holding a fishing rod on a wooden pier.
+    face: { x: 0.17, y: 0.05, w: 0.44, h: 0.31 },
     shots: [
-      { id: "face", label: "Captain close-up", face: true, focus: { x: 0.42, y: 0.25 } },
-      { id: "full", label: "Captain and rod", face: true, focus: { x: 0.45, y: 0.5 } },
-      { id: "rod", label: "Reel detail", face: false, focus: { x: 0.72, y: 0.72 } },
-      { id: "sea", label: "Pier and sea", face: false, focus: { x: 0.75, y: 0.45 } },
+      { id: 'face', label: 'Face', rect: { x: 0.08, y: 0.0, w: 0.62, h: 0.44 }, hasFace: true },
+      { id: 'figure', label: 'Figure + rod', rect: { x: 0.0, y: 0.0, w: 1.0, h: 1.0 }, hasFace: true },
+      { id: 'reel', label: 'Rod + reel', rect: { x: 0.52, y: 0.42, w: 0.48, h: 0.5 }, hasFace: false },
+      { id: 'sea', label: 'Turquoise sea', rect: { x: 0.5, y: 0.24, w: 0.5, h: 0.34 }, hasFace: false },
     ],
   },
   {
-    id: "graffiti",
-    src: "samples/graffiti.jpg",
-    role: "THE ARTIST",
-    face: { x: 0.22, y: 0.13, w: 0.4, h: 0.3 },
+    id: 'graffiti',
+    src: 'samples/graffiti.jpg',
+    label: 'The Artist',
+    role: 'THE ARTIST',
+    // Painted portrait on a brick wall: a woman's face above a blue arch.
+    face: { x: 0.17, y: 0.14, w: 0.44, h: 0.31 },
     shots: [
-      { id: "face", label: "Mural face", face: true, focus: { x: 0.42, y: 0.28 } },
-      { id: "mural", label: "Whole mural", face: true, focus: { x: 0.5, y: 0.5 } },
-      { id: "arch", label: "Painted arch", face: false, focus: { x: 0.5, y: 0.72 } },
+      { id: 'face', label: 'Painted face', rect: { x: 0.1, y: 0.08, w: 0.6, h: 0.44 }, hasFace: true },
+      { id: 'mural', label: 'Whole mural', rect: { x: 0.0, y: 0.0, w: 1.0, h: 1.0 }, hasFace: true },
+      { id: 'arch', label: 'Arch + tree', rect: { x: 0.24, y: 0.5, w: 0.52, h: 0.46 }, hasFace: false },
+      { id: 'brick', label: 'Brick wall', rect: { x: 0.6, y: 0.0, w: 0.4, h: 0.3 }, hasFace: false },
     ],
   },
   {
-    id: "portrait",
-    src: "samples/portrait.jpg",
-    role: "THE LOOKOUT",
-    face: { x: 0.2, y: 0.06, w: 0.37, h: 0.3 },
+    id: 'portrait',
+    src: 'samples/portrait.jpg',
+    label: 'The Lookout',
+    role: 'THE LOOKOUT',
+    // Smiling senior woman with curly blonde hair, chin on her hand.
+    face: { x: 0.07, y: 0.03, w: 0.54, h: 0.33 },
     shots: [
-      { id: "face", label: "Lookout close-up", face: true, focus: { x: 0.38, y: 0.21 } },
-      { id: "smile", label: "Lookout smile", face: true, focus: { x: 0.4, y: 0.3 } },
-      { id: "room", label: "Lookout at home", face: true, focus: { x: 0.45, y: 0.45 } },
+      { id: 'face', label: 'Face close-up', rect: { x: 0.0, y: 0.0, w: 0.68, h: 0.46 }, hasFace: true },
+      { id: 'figure', label: 'Seated portrait', rect: { x: 0.0, y: 0.0, w: 1.0, h: 1.0 }, hasFace: true },
+      { id: 'knit', label: 'Knit sweater', rect: { x: 0.3, y: 0.38, w: 0.6, h: 0.4 }, hasFace: false },
+      { id: 'palm', label: 'Palm sofa', rect: { x: 0.55, y: 0.08, w: 0.45, h: 0.3 }, hasFace: false },
     ],
   },
   {
-    id: "singer",
-    src: "samples/singer.jpg",
-    role: "THE SINGER",
-    face: { x: 0.46, y: 0.08, w: 0.31, h: 0.27 },
+    id: 'singer',
+    src: 'samples/singer.jpg',
+    label: 'The Singer',
+    role: 'THE SINGER',
+    // Musician with curly hair playing an acoustic guitar on a blue stage.
+    face: { x: 0.44, y: 0.07, w: 0.42, h: 0.29 },
     shots: [
-      { id: "face", label: "Singer close-up", face: true, focus: { x: 0.61, y: 0.21 } },
-      { id: "stage", label: "Singer and guitar", face: true, focus: { x: 0.58, y: 0.5 } },
-      { id: "guitar", label: "Guitar detail", face: false, focus: { x: 0.38, y: 0.68 } },
+      { id: 'face', label: 'Face + guitar', rect: { x: 0.36, y: 0.0, w: 0.6, h: 0.42 }, hasFace: true },
+      { id: 'stage', label: 'On stage', rect: { x: 0.0, y: 0.0, w: 1.0, h: 1.0 }, hasFace: true },
+      { id: 'guitar', label: 'Guitar body', rect: { x: 0.0, y: 0.42, w: 0.55, h: 0.5 }, hasFace: false },
+      { id: 'blue', label: 'Blue stage light', rect: { x: 0.0, y: 0.0, w: 0.42, h: 0.3 }, hasFace: false },
     ],
   },
 ];
 
-export function photoById(id) {
-  return CAST.find((p) => p.id === id) || CAST[0];
+export function sampleById(id) {
+  return SAMPLES.find((s) => s.id === id) || SAMPLES[0];
 }
 
-export function shotById(photo, shotId) {
-  return photo.shots.find((s) => s.id === shotId) || photo.shots[0];
-}
-
-// Crop window (fractions of the photo) for one shot at one panel aspect.
-// Face shots are built from the face box: the face plus a margin is the
-// smallest window allowed, and the window only ever grows from there, so a
-// narrow panel zooms OUT instead of slicing the face at the panel edge.
-// Detail shots centre on their focus point at a fixed zoom.
-export function shotWindow(photo, shot, aspect, zoom = 1) {
-  const f = photo.face;
-  if (shot.face) {
-    // Smallest allowed window: the face plus a margin on every side.
-    const fx = Math.max(0, f.x - f.w * 0.42);
-    const fy = Math.max(0, f.y - f.h * 0.42);
-    const fw = Math.min(1 - fx, f.w * 1.84);
-    const fh = Math.min(1 - fy, f.h * 1.84);
-    // Grow to the panel aspect, then shrink to fit the photo if needed.
-    // Either way the window keeps the target aspect, stays inside the
-    // photo, and still contains the whole face.
-    let w = Math.max(fw, fh * aspect);
-    let h = w / aspect;
-    if (w > 1) {
-      w = 1;
-      h = 1 / aspect;
-    }
-    if (h > 1) {
-      h = 1;
-      w = aspect;
-    }
-    // Zoom around the face centre (editor), then centre and clamp.
-    if (zoom !== 1) {
-      w = Math.min(1, w / zoom);
-      h = Math.min(1, h / zoom);
-    }
+// A crop window for a face shot: the face box with a margin, widened or
+// narrowed to the panel's aspect ratio, clamped inside the photo. The face
+// box itself is always fully inside the returned window.
+export function faceSafeWindow(sample, aspect) {
+  const f = sample.face;
+  const pad = 0.10;
+  let x = Math.max(0, f.x - pad);
+  let y = Math.max(0, f.y - pad);
+  let w = Math.min(1 - x, f.w + pad * 2);
+  let h = Math.min(1 - y, f.h + pad * 2);
+  const want = w / h;
+  if (aspect > want) {
+    // Panel is wider than the face window: widen it, keep the face centred.
+    const nw = Math.min(1, h * aspect);
     const cx = f.x + f.w / 2;
+    x = Math.max(0, Math.min(1 - nw, cx - nw / 2));
+    w = nw;
+  } else {
+    // Panel is taller: grow height, keep the face inside.
+    const nh = Math.min(1, w / aspect);
     const cy = f.y + f.h / 2;
-    const x = Math.max(0, Math.min(1 - w, cx - w / 2));
-    const y = Math.max(0, Math.min(1 - h, cy - h / 2));
-    return { x, y, w, h };
+    y = Math.max(0, Math.min(1 - nh, cy - nh / 2));
+    h = nh;
   }
-  // Detail shot: fixed-size window on the focus point, aspect-matched.
-  const base = 0.62 / zoom;
-  let h = Math.min(1, base);
-  let w = h * aspect;
-  if (w > 1) {
-    w = 1;
-    h = 1 / aspect;
-  }
-  const x = Math.max(0, Math.min(1 - w, shot.focus.x - w / 2));
-  const y = Math.max(0, Math.min(1 - h, shot.focus.y - h / 2));
-  return { x, y, w, h };
+  // Final safety: the face box must lie inside the window.
+  x = Math.min(x, f.x);
+  y = Math.min(y, f.y);
+  w = Math.max(w, f.x + f.w - x);
+  h = Math.max(h, f.y + f.h - y);
+  return { x, y, w: Math.min(w, 1 - x), h: Math.min(h, 1 - y) };
 }
 
-// Default crop for a photo the user uploads: biased to the upper third,
-// where a face usually sits, so the first render is already sensible.
-export function uploadWindow(aspect) {
-  const w = 1;
-  const h = Math.min(1, w / aspect);
-  return { x: 0, y: 0.04, w, h };
+// Default crop for a user-uploaded photo (no measured face): bias to the
+// upper third, where a face usually sits, and keep it wide enough to hold
+// a head. The user can drag and zoom any panel afterwards.
+export function defaultUploadWindow(aspect) {
+  const w = 0.92;
+  const h = Math.min(0.92, w / aspect);
+  return { x: 0.04, y: 0.03, w, h };
 }

@@ -1,267 +1,260 @@
-// Neon Coast Cover Studio — poster furniture drawn on canvas.
-//
-// The chrome title is the memorable element: a silver-to-gold-to-pink
-// vertical gradient, extruded with offset dark layers, a crisp white
-// highlight pass, and a slight skew. Everything else (role tags, ribbon,
-// billing, seal, barcode, quote bar) is drawn in the same ink-and-gold
-// language so the cover reads as one poster, not a grid of photos.
+// poster.js — the film-poster furniture of Neon Coast Cover Studio: the
+// retro-chrome 3D title, the neon script subtitle, role tags, quote bar,
+// ribbon, billing block, circular seal and barcode. Everything is drawn on
+// the cover canvas itself, so the exported PNG carries the whole poster.
 
-export const INK = "#14071d";
-export const GOLD = "#f2b705";
-export const PINK = "#ff2e88";
-export const CREAM = "#fff3d6";
+export const TITLE = 'NEON COAST';
+export const SUBTITLE = 'Paid in Sunsets';
+export const QUOTE = '“The most wanted sunset in Leonida”';
+export const RIBBON = 'EVERYONE WANTS A CUT OF THE SUNSET';
+export const BILLING =
+  'NEON COAST  •  A LEONIDA STORY  •  STARRING THE DRIVER  THE CAPTAIN  THE ARTIST  THE LOOKOUT  THE SINGER';
+export const BILLING_2 =
+  'DIRECTED BY NEON COAST STUDIO  •  MUSIC BY THE STAGE SINGER  •  SHOT ON LEONIDA BOULEVARD';
 
-// A small reusable halftone dot tile, drawn once and stamped as a pattern.
-export function halftoneTile(size = 14, dot = 3.4, color = "#000000") {
-  const c = document.createElement("canvas");
-  c.width = size;
-  c.height = size;
-  const g = c.getContext("2d");
-  g.fillStyle = color;
-  g.beginPath();
-  g.arc(size / 2, size / 2, dot, 0, Math.PI * 2);
-  g.fill();
-  return c;
+// A subtle halftone dot field, drawn once into an offscreen canvas and
+// tiled over the title block. Kept faint on purpose: texture, not noise.
+export function halftonePattern(ctx, size, spacing, alpha) {
+  const tile = document.createElement('canvas');
+  tile.width = spacing;
+  tile.height = spacing;
+  const t = tile.getContext('2d');
+  t.fillStyle = `rgba(255,255,255,${alpha})`;
+  t.beginPath();
+  t.arc(spacing / 2, spacing / 2, size / 2, 0, Math.PI * 2);
+  t.fill();
+  return ctx.createPattern(tile, 'repeat');
 }
 
-export function paintHalftone(ctx, x, y, w, h, alpha = 0.16) {
-  const tile = halftoneTile();
-  const pat = ctx.createPattern(tile, "repeat");
+// Retro-chrome 3D title. One measurement, one centred position — the text
+// is drawn with textAlign 'left' from a single computed x, so it can never
+// double-centre or slide off the canvas. Returns the title's bounding box.
+export function drawChromeTitle(ctx, text, cx, top, width, fonts) {
+  // `width` is the limiting width the caller passes (already the smaller
+  // of the title-block width and a height-derived bound), so the title
+  // always fits its block at every canvas size.
+  const size = Math.min(width * 0.135, 150);
   ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.fillStyle = pat;
-  ctx.fillRect(x, y, w, h);
-  ctx.restore();
-}
-
-// Inked panel frame: thick ink outline, gold hairline, and a 1px pure-white
-// low-opacity edge on the photo itself (the "printed" look).
-export function inkFrame(ctx, x, y, w, h, gold = GOLD) {
-  ctx.save();
-  ctx.lineJoin = "miter";
-  ctx.strokeStyle = INK;
-  ctx.lineWidth = Math.max(4, w * 0.012);
-  ctx.strokeRect(x, y, w, h);
-  ctx.strokeStyle = gold;
-  ctx.lineWidth = Math.max(1.5, w * 0.004);
-  ctx.strokeRect(x + ctx.lineWidth * 2.5, y + ctx.lineWidth * 2.5, w - ctx.lineWidth * 5, h - ctx.lineWidth * 5);
-  ctx.strokeStyle = "rgba(255,255,255,0.28)";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
-  ctx.restore();
-}
-
-// Role tag: black slash-cut chip with a gold underline, top-left of a panel.
-export function roleTag(ctx, text, x, y, fontPx) {
-  ctx.save();
-  ctx.font = `900 ${fontPx}px Anton, sans-serif`;
-  const pad = fontPx * 0.42;
+  ctx.font = `${size}px ${fonts.display}`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
   const tw = ctx.measureText(text).width;
-  const w = tw + pad * 2;
-  const h = fontPx * 1.5;
-  ctx.fillStyle = INK;
+  // Slight skew for the retro lean, pivoting around the title centre.
+  ctx.translate(cx, top);
+  ctx.transform(1, 0, -0.06, 1, 0, 0);
+  const x = -tw / 2;
+  // Extrusion: layered offsets, darkest first, stepping up-left.
+  const layers = [
+    ['#3d0a4d', 10], ['#5c1168', 8], ['#7a1a80', 6],
+    ['#a12a8c', 4], ['#c93a92', 2],
+  ];
+  for (const [color, dy] of layers) {
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, dy);
+  }
+  // Chrome face: silver -> gold -> pink, top to bottom.
+  const grad = ctx.createLinearGradient(0, -size * 0.72, 0, size * 0.22);
+  grad.addColorStop(0.0, '#ffffff');
+  grad.addColorStop(0.32, '#e8ecf4');
+  grad.addColorStop(0.55, '#f7c948');
+  grad.addColorStop(0.78, '#ff7ab8');
+  grad.addColorStop(1.0, '#ff4d94');
+  ctx.fillStyle = grad;
+  ctx.fillText(text, x, 0);
+  // Top highlight + thin dark outline to lift the letters off the block.
+  ctx.strokeStyle = 'rgba(20,4,32,0.55)';
+  ctx.lineWidth = Math.max(1, size * 0.012);
+  ctx.strokeText(text, x, 0);
+  ctx.fillStyle = 'rgba(255,255,255,0.75)';
+  ctx.fillRect(x + tw * 0.06, -size * 0.66, tw * 0.5, Math.max(2, size * 0.03));
+  ctx.restore();
+  return { x: cx - tw / 2, y: top - size * 0.72, w: tw, h: size * 0.95 };
+}
+
+export function drawNeonSubtitle(ctx, text, cx, y, size, fonts) {
+  ctx.save();
+  ctx.font = `${size}px ${fonts.script}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#ff2e88';
+  ctx.shadowBlur = size * 0.55;
+  ctx.fillStyle = '#ffd7ea';
+  ctx.fillText(text, cx, y);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(text, cx, y);
+  ctx.restore();
+}
+
+export function drawRoleTag(ctx, text, x, y, scale, maxWidth) {
+  ctx.save();
+  // Shrink the tag to fit narrow panels (portrait/square side slots are
+  // barely wider than the text): measure, then step the font down until
+  // the tag fits its max width instead of spilling past the panel edge.
+  let fontSize = Math.round(15 * scale);
+  ctx.font = `700 ${fontSize}px ${'Arial, sans-serif'}`;
+  const pad = 8 * scale;
+  let w = ctx.measureText(text).width + pad * 2;
+  while (maxWidth && w > maxWidth && fontSize > 7) {
+    fontSize -= 1;
+    ctx.font = `700 ${fontSize}px ${'Arial, sans-serif'}`;
+    w = ctx.measureText(text).width + pad * 2;
+  }
+  const h = 24 * scale;
+  ctx.fillStyle = '#0d0416';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#f2b705';
+  ctx.fillRect(x, y + h - 3 * scale, w, 3 * scale);
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x + pad, y + h / 2 - 1 * scale);
+  ctx.restore();
+  return { w, h };
+}
+
+export function drawQuoteBar(ctx, text, x, y, width, scale, fonts) {
+  ctx.save();
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#f2b705';
+  const star = '★'.repeat(5);
+  ctx.font = `${Math.round(17 * scale)}px ${'Arial, sans-serif'}`;
+  ctx.textAlign = 'left';
+  ctx.fillText(star, x, y);
+  const sw = ctx.measureText(star).width;
+  ctx.fillStyle = '#fff3d6';
+  ctx.font = `italic ${Math.round(16 * scale)}px Georgia, serif`;
+  ctx.fillText(text, x + sw + 10 * scale, y);
+  ctx.restore();
+}
+
+export function drawRibbon(ctx, text, cx, y, width, height, fonts) {
+  ctx.save();
+  const x = cx - width / 2;
+  // Folded ends.
+  ctx.fillStyle = '#c2185b';
   ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + w, y);
-  ctx.lineTo(x + w - fontPx * 0.28, y + h);
-  ctx.lineTo(x, y + h);
+  ctx.moveTo(x - 16, y);
+  ctx.lineTo(x, y);
+  ctx.lineTo(x, y + height);
+  ctx.lineTo(x - 16, y + height);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
+  ctx.beginPath();
+  ctx.moveTo(x + width + 16, y);
+  ctx.lineTo(x + width, y);
+  ctx.lineTo(x + width, y + height);
+  ctx.lineTo(x + width + 16, y + height);
+  ctx.closePath();
+  ctx.fill();
+  // Body with a soft vertical shade.
+  const grad = ctx.createLinearGradient(0, y, 0, y + height);
+  grad.addColorStop(0, '#ff5c9e');
+  grad.addColorStop(1, '#ff2e88');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, width, height);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `700 ${Math.round(height * 0.52)}px ${fonts.display}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, cx, y + height / 2 + 1);
+  ctx.restore();
+}
+
+export function drawBilling(ctx, lines, cx, y, width, scale) {
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,243,214,0.82)';
+  // Fit the billing inside `width`: step the font down until the longest
+  // line fits, so it never runs under the barcode or into the seal.
+  let fontSize = Math.round(11 * scale);
+  ctx.font = `${fontSize}px ${'Arial, sans-serif'}`;
+  const widest = Math.max(...lines.map((line) => ctx.measureText(line).width));
+  while (widest > width && fontSize > 7) {
+    fontSize -= 1;
+    ctx.font = `${fontSize}px ${'Arial, sans-serif'}`;
+    if (Math.max(...lines.map((line) => ctx.measureText(line).width)) <= width) break;
+  }
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  lines.forEach((line, i) => {
+    ctx.fillText(line, cx, y + i * 15 * scale);
+  });
+  ctx.restore();
+}
+
+export function drawSeal(ctx, cx, cy, r) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.lineWidth = Math.max(2, r * 0.07);
+  ctx.strokeStyle = '#f2b705';
+  ctx.fillStyle = '#2a1038';
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 0.78, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#f2b705';
+  ctx.font = `${Math.round(r * 0.62)}px ${'Arial, sans-serif'}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('★', 0, -r * 0.16);
+  ctx.font = `700 ${Math.round(r * 0.3)}px ${'Arial, sans-serif'}`;
+  ctx.fillText('2026', 0, r * 0.34);
+  ctx.restore();
+}
+
+export function drawBarcode(ctx, x, y, w, h) {
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#0d0416';
+  let bx = x + 4;
+  let i = 0;
+  while (bx < x + w - 4) {
+    const bw = [2, 1, 3, 1, 2, 4, 1, 2][i % 8];
+    if (i % 2 === 0) ctx.fillRect(bx, y + 3, bw, h - 6);
+    bx += bw + 2;
+    i += 1;
+  }
+  ctx.restore();
+}
+
+export function drawChip(ctx, text, x, y, scale, fonts) {
+  ctx.save();
+  ctx.font = `700 ${Math.round(13 * scale)}px ${fonts.display}`;
+  const pad = 9 * scale;
+  const w = ctx.measureText(text).width + pad * 2;
+  const h = 22 * scale;
+  ctx.fillStyle = '#f2b705';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#0d0416';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
   ctx.fillText(text, x + pad, y + h / 2 + 1);
-  ctx.fillStyle = GOLD;
-  ctx.fillRect(x, y + h, w - fontPx * 0.28, Math.max(2, fontPx * 0.12));
   ctx.restore();
   return w;
 }
 
-// Chrome 3D title. Centring is computed ONCE from the measured width and
-// drawn with textAlign "left" — never translate(-w/2) on top of a centred
-// alignment, which is how a title ends up shifted half its width.
-export function chromeTitle(ctx, text, cx, top, maxW, fontPx) {
+export function drawVolumeChip(ctx, text, x, y, scale) {
+  // `x` is the chip's RIGHT edge, so callers can pin it to the canvas
+  // edge without measuring the text first; the chip never runs off-canvas.
   ctx.save();
-  ctx.font = `${fontPx}px Anton, sans-serif`;
-  let size = fontPx;
-  let tw = ctx.measureText(text).width;
-  while (tw > maxW && size > 24) {
-    size *= 0.94;
-    ctx.font = `${size}px Anton, sans-serif`;
-    tw = ctx.measureText(text).width;
-  }
-  const x = cx - tw / 2;
-  const skew = -0.045;
-  ctx.transform(1, 0, skew, 1, -skew * top, 0);
-  ctx.textAlign = "left";
-  ctx.textBaseline = "alphabetic";
-  // Extrusion: stacked dark layers marching down-right.
-  const layers = 7;
-  for (let i = layers; i >= 1; i--) {
-    ctx.fillStyle = i % 2 === 0 ? "#3d0a4e" : "#1c0526";
-    ctx.fillText(text, x + i * size * 0.022, top + size + i * size * 0.03);
-  }
-  // Chrome face: silver -> gold -> pink, top to bottom.
-  const grad = ctx.createLinearGradient(0, top, 0, top + size * 1.05);
-  grad.addColorStop(0, "#ffffff");
-  grad.addColorStop(0.34, "#e8e4da");
-  grad.addColorStop(0.52, "#f2b705");
-  grad.addColorStop(0.72, "#ff9ecf");
-  grad.addColorStop(1, "#ff2e88");
-  ctx.fillStyle = grad;
-  ctx.fillText(text, x, top + size);
-  // Top highlight: same text, clipped to its upper third, in white.
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(x - size * 0.1, top, tw + size * 0.2, size * 0.32);
-  ctx.clip();
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.fillText(text, x, top + size);
+  ctx.strokeStyle = '#f2b705';
+  ctx.lineWidth = Math.max(1.5, 2 * scale);
+  ctx.fillStyle = 'rgba(13,4,22,0.6)';
+  ctx.font = `700 ${Math.round(13 * scale)}px ${'Arial, sans-serif'}`;
+  const pad = 8 * scale;
+  const w = ctx.measureText(text).width + pad * 2;
+  const h = 22 * scale;
+  const x0 = x - w;
+  ctx.fillRect(x0, y, w, h);
+  ctx.strokeRect(x0, y, w, h);
+  ctx.fillStyle = '#f2b705';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x0 + pad, y + h / 2 + 1);
   ctx.restore();
-  // Thin dark outline so the chrome holds against bright photos.
-  ctx.strokeStyle = "rgba(20,7,29,0.55)";
-  ctx.lineWidth = Math.max(1, size * 0.012);
-  ctx.strokeText(text, x, top + size);
-  ctx.restore();
-  return { x, width: tw, height: size * 1.35 };
-}
-
-// Neon script subtitle (Pacifico) with a pink glow.
-export function neonScript(ctx, text, cx, top, fontPx) {
-  ctx.save();
-  ctx.font = `${fontPx}px Pacifico, cursive`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.shadowColor = PINK;
-  ctx.shadowBlur = fontPx * 0.55;
-  ctx.fillStyle = "#ffd7ea";
-  ctx.fillText(text, cx, top + fontPx);
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = "#ffffff";
-  ctx.fillText(text, cx, top + fontPx);
-  ctx.restore();
-}
-
-// Pink ribbon with folded ends.
-export function ribbon(ctx, text, cx, y, w, h) {
-  ctx.save();
-  const x = cx - w / 2;
-  ctx.font = `900 ${h * 0.52}px Anton, sans-serif`;
-  ctx.fillStyle = "#d61f6e";
-  ctx.beginPath();
-  ctx.moveTo(x - h * 0.5, y + h * 0.18);
-  ctx.lineTo(x, y);
-  ctx.lineTo(x, y + h);
-  ctx.lineTo(x - h * 0.5, y + h * 0.82);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x + w + h * 0.5, y + h * 0.18);
-  ctx.lineTo(x + w, y);
-  ctx.lineTo(x + w, y + h);
-  ctx.lineTo(x + w + h * 0.5, y + h * 0.82);
-  ctx.closePath();
-  ctx.fill();
-  const grad = ctx.createLinearGradient(x, y, x, y + h);
-  grad.addColorStop(0, "#ff5da2");
-  grad.addColorStop(1, "#ff2e88");
-  ctx.fillStyle = grad;
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = "#ffffff";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, cx, y + h / 2 + 1);
-  ctx.restore();
-}
-
-// Two-line billing block, centred, small caps.
-export function billing(ctx, lines, cx, top, fontPx, color = "rgba(255,243,214,0.72)") {
-  ctx.save();
-  ctx.font = `${fontPx}px Anton, sans-serif`;
-  ctx.fillStyle = color;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  lines.forEach((ln, i) => ctx.fillText(ln, cx, top + fontPx * (i + 1)));
-  ctx.restore();
-}
-
-// Circular gold seal with a star and the year.
-export function seal(ctx, cx, cy, r, year = "2026") {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.fillStyle = "#2a0a2e";
-  ctx.beginPath();
-  ctx.arc(0, 0, r, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = GOLD;
-  ctx.lineWidth = Math.max(2, r * 0.07);
-  ctx.beginPath();
-  ctx.arc(0, 0, r - ctx.lineWidth, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.strokeStyle = "rgba(242,183,5,0.5)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.arc(0, 0, r * 0.78, 0, Math.PI * 2);
-  ctx.stroke();
-  drawStar(ctx, 0, -r * 0.18, r * 0.34, GOLD);
-  ctx.fillStyle = GOLD;
-  ctx.font = `900 ${r * 0.34}px Anton, sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(year, 0, r * 0.42);
-  ctx.restore();
-}
-
-export function drawStar(ctx, cx, cy, r, color) {
-  ctx.save();
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const rr = i % 2 === 0 ? r : r * 0.42;
-    const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    const px = cx + Math.cos(a) * rr;
-    const py = cy + Math.sin(a) * rr;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
-// Barcode: random-width bars, deterministic seed so exports are stable.
-export function barcode(ctx, x, y, w, h) {
-  ctx.save();
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(x - 4, y - 3, w + 8, h + 6);
-  ctx.fillStyle = "#111111";
-  let seed = 1234567;
-  const rnd = () => {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    return seed / 0x7fffffff;
-  };
-  let px = x;
-  while (px < x + w - 3) {
-    const bw = 1 + Math.floor(rnd() * 4);
-    if (rnd() > 0.42) ctx.fillRect(px, y, bw, h);
-    px += bw + 1 + Math.floor(rnd() * 3);
-  }
-  ctx.restore();
-}
-
-// Quote bar: five gold stars + italic quote, top of the cover.
-export function quoteBar(ctx, text, x, y, fontPx, maxW) {
-  ctx.save();
-  let sx = x;
-  const sr = fontPx * 0.42;
-  for (let i = 0; i < 5; i++) {
-    drawStar(ctx, sx + sr, y + sr, sr, GOLD);
-    sx += sr * 2.3;
-  }
-  ctx.fillStyle = "#ffe9f4";
-  ctx.font = `italic ${fontPx}px Georgia, serif`;
-  ctx.textAlign = "left";
-  ctx.textBaseline = "middle";
-  ctx.fillText(text, sx + fontPx * 0.5, y + sr + 1);
-  ctx.restore();
+  return w;
 }

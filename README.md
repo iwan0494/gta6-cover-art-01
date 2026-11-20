@@ -1,12 +1,13 @@
 # Neon Coast Cover Studio
 
-[![make.fun](https://make.fun/badge/competition/gta6-cover-art-01)](https://make.fun/bounty/gta6-cover-art-01)
-[![make.fun](https://make.fun/badge/entry/gta6-cover-art-01)](https://make.fun/bounty/gta6-cover-art-01)
-[![make.fun](https://make.fun/badge/agent/gta6-cover-art-01)](https://make.fun)
+[![make.fun · gta6-cover-art-01](https://make.fun/badge/gta6-cover-art-01.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
+[![rank](https://make.fun/badge/gta6-cover-art-01/iwan0494/gta6-cover-art-01/rank.svg)](https://make.fun/bounty/gta6-cover-art-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
+[![reward](https://make.fun/badge/gta6-cover-art-01/iwan0494/gta6-cover-art-01/reward.svg)](https://make.fun/bounty/gta6-cover-art-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-cover-art-01)
 
-Turn any photo into a GTA 6-style key-art cover — a multi-panel movie poster
-with a pop-out hero, retro-chrome 3D title, and full film-poster furniture.
-Runs entirely offline in a desktop browser; photos never leave the machine.
+Turn any photo into a GTA 6-style key-art cover — a multi-panel movie
+poster with a pop-out hero, retro-chrome 3D title, and full film-poster
+furniture. It runs entirely offline in a desktop browser; photos never
+leave the machine.
 
 ## What it does
 
@@ -16,10 +17,11 @@ Runs entirely offline in a desktop browser; photos never leave the machine.
   Vice Blue, Heatwave, Lavender Dusk, Mono Gold — each with sky glow,
   vignette and film grain.
 - **Face-aware crops** — every sample photo carries a measured face box, so
-  panels keep faces whole at every size. A face is never drawn twice in one
-  cover; a photo only repeats through a faceless detail shot.
+  panels keep faces whole at every size and every aspect ratio. A face is
+  never drawn twice in one cover; a photo only repeats through a faceless
+  detail shot.
 - **Chrome 3D title** — silver-to-gold-to-pink gradient with layered
-  extrusion and a halftone title block, plus a neon Pacifico subtitle.
+  extrusion on a halftone title block, plus a neon Pacifico subtitle.
 - **Poster furniture** — role tags, five-star quote bar, ribbon, billing
   block, circular 2026 seal, barcode, COMING SOON, VOL. 1 chip.
 - **Editor** — upload your own photo, drag any panel to reframe, scroll to
@@ -52,11 +54,11 @@ directory and writes `dossier.json` via the kit's `buildDossier`.
 ## Photo credits
 
 - `samples/boulevard.jpg`, `samples/pier.jpg` — kit starter photos.
-- `samples/graffiti.jpg` — “Graffiti Portrait Bülowstraße Berlin-Schöneberg”,
-  CC0, Wikimedia Commons.
-- `samples/portrait.jpg` — “Smiling senior woman with curly hair portrait”,
-  CC BY 2.0, Wikimedia Commons.
-- `samples/singer.jpg` — “Jack Johnson 2014”, CC BY-SA 4.0, photo by
+- `samples/graffiti.jpg` — "Graffiti Portrait Bülowstraße
+  Berlin-Schöneberg", CC0, Wikimedia Commons.
+- `samples/portrait.jpg` — "Smiling senior woman with curly hair
+  portrait", CC BY 2.0, Wikimedia Commons.
+- `samples/singer.jpg` — "Jack Johnson 2014", CC BY-SA 4.0, photo by
   @Photocyclone, Wikimedia Commons.
 
 No Rockstar Games logos, official artwork, or game fonts are used anywhere.

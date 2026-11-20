@@ -1,8 +1,1 @@
-{
-  "shots": [
-    { "id": "cover", "file": "1-cover.jpg", "mode": "?shot=cover", "width": 1280, "height": 720, "caption": "Key Art cover, landscape" },
-    { "id": "editor", "file": "2-editor.jpg", "mode": "?shot=editor", "width": 1280, "height": 720, "caption": "Editor with a photo loaded" },
-    { "id": "portrait", "file": "3-cover-portrait.jpg", "mode": "?shot=portrait", "width": 1024, "height": 1280, "caption": "Key Art cover, portrait" },
-    { "id": "square", "file": "4-cover-square.jpg", "mode": "?shot=square", "width": 1080, "height": 1080, "caption": "Hero Pop-Out cover, square" }
-  ]
-}
+{"scenes":[{"description":"The exported Key Art cover, full-bleed, landscape 1280x720.","id":"cover","url":"app/index.html?shot=cover&w=1280&h=720"},{"description":"The editor with a photo loaded: controls left, live cover centre.","id":"editor","url":"app/index.html?shot=editor"},{"description":"The exported Key Art cover, portrait 1024x1280.","id":"cover-portrait","url":"app/index.html?shot=cover&w=1024&h=1280&grade=neon"},{"description":"The Hero Pop-Out cover, square 1080x1080.","id":"cover-square","url":"app/index.html?shot=cover&w=1080&h=1080&layout=hero3&grade=golden"}]}
