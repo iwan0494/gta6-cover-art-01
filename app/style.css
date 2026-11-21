@@ -1,195 +1,401 @@
-/* Neon Coast Cover Studio — editor UI.
-   Tokens: deep violet base, gold frame, hot-pink ribbon accent.
-   Radii are concentric (outer 14 / inner 8); shadows are layered
-   transparent stacks, never one flat grey wash. */
+/* Neon Coast Cover Studio — editor chrome.
+ *
+ * One visual world: plum night, gold ink, hot pink. The cover canvas is
+ * the loud thing; the chrome around it stays quiet and disciplined.
+ * Controls are grouped by job, not chopped into identical cards: layout
+ * is a 2-column button grid, grades are a swatch row, photos are a
+ * thumbnail strip, actions are one gold button. Radii are concentric
+ * (outer = inner + padding), shadows are layered and dark, never the
+ * single soft grey wash. */
 
 @font-face {
   font-family: 'Anton';
   src: url('fonts/Anton-Regular.ttf') format('truetype');
   font-weight: 400;
+  font-style: normal;
   font-display: swap;
 }
+
 @font-face {
   font-family: 'Pacifico';
   src: url('fonts/Pacifico-Regular.ttf') format('truetype');
   font-weight: 400;
+  font-style: normal;
   font-display: swap;
 }
 
 :root {
-  --bg: #12081d;
-  --bg-2: #1a0b28;
-  --panel: #20102f;
-  --panel-2: #2a153d;
-  --line: #3d2354;
-  --gold: #f5b90c;
+  --plum: #160a20;
+  --plum-deep: #0d0513;
+  --plum-panel: #1e0d2b;
+  --plum-line: #3a1c52;
+  --gold: #f2b705;
+  --gold-soft: #ffd76a;
   --pink: #ff2e88;
-  --ink: #f3e9ff;
-  --muted: #b9a3cf;
-  --radius-out: 14px;
-  --radius-in: 8px;
+  --ink: #f4eef8;
+  --ink-dim: #b9a8c9;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
+* {
+  box-sizing: border-box;
+}
+
+html,
 body {
-  background: var(--bg);
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--plum-deep);
   color: var(--ink);
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
 }
 
-/* Top bar */
+/* Top bar: a thin gold rule under a compact brand lockup. */
 .topbar {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 16px;
   padding: 12px 20px;
-  background: linear-gradient(180deg, #221031, #180a24);
-  border-bottom: 2px solid var(--line);
+  border-bottom: 2px solid var(--gold);
+  background: linear-gradient(90deg, #1c0b28, #160a20 60%, #1c0b28);
 }
-.brand { display: flex; align-items: baseline; gap: 10px; }
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
 .brand-mark {
-  font-family: Anton, sans-serif;
-  font-size: 22px;
-  color: #12081d;
+  font-family: Anton, 'Arial Narrow', sans-serif;
+  font-size: 20px;
+  color: var(--plum-deep);
   background: var(--gold);
   padding: 2px 8px;
-  border-radius: 4px;
-  transform: rotate(-2deg);
-  display: inline-block;
+  transform: skewX(-6deg);
+  letter-spacing: 1px;
 }
-.brand-name { font-family: Anton, sans-serif; font-size: 22px; letter-spacing: 1px; }
-.brand-sub { font-family: Pacifico, cursive; color: var(--pink); font-size: 16px; }
-.top-actions { display: flex; gap: 8px; }
 
-/* Buttons */
-.btn {
-  font: 600 13px/1 system-ui, sans-serif;
-  color: var(--ink);
-  background: var(--panel-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-in);
-  padding: 9px 14px;
-  cursor: pointer;
-  transition: transform 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out;
-}
-.btn:hover { background: #341c4d; border-color: var(--gold); }
-.btn:active { transform: scale(0.96); }
-.btn.gold { background: var(--gold); color: #1a0b00; border-color: var(--gold); }
-.btn.gold:hover { background: #ffd23d; }
-.btn.ghost { background: transparent; }
-.btn.upload { display: inline-block; text-align: center; width: 100%; margin-top: 8px; }
-
-/* Studio layout */
-.studio {
-  display: grid;
-  grid-template-columns: 300px 1fr;
-  gap: 16px;
-  padding: 16px 20px 24px;
-  align-items: start;
-}
-.rail {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-out);
-  padding: 14px;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.04), 0 12px 32px rgba(0,0,0,0.45);
-}
-.rail-block { padding: 10px 0 14px; border-bottom: 1px solid var(--line); }
-.rail-block:last-child { border-bottom: 0; padding-bottom: 2px; }
-.rail-block h2 {
-  font-family: Anton, sans-serif;
-  font-size: 14px;
-  letter-spacing: 2px;
-  color: var(--gold);
-  margin: 0 0 10px;
+.brand-name {
+  font-family: Anton, 'Arial Narrow', sans-serif;
+  font-size: 20px;
+  letter-spacing: 1px;
   text-transform: uppercase;
 }
-.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip {
-  font: 600 12px/1 system-ui, sans-serif;
-  color: var(--ink);
-  background: var(--bg-2);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 7px 11px;
-  cursor: pointer;
-  transition: transform 120ms ease-out, border-color 120ms ease-out, background-color 120ms ease-out;
+
+.brand-sub {
+  font-family: Pacifico, cursive;
+  font-size: 14px;
+  color: var(--gold-soft);
 }
-.chip:hover { border-color: var(--gold); }
-.chip:active { transform: scale(0.96); }
-.chip.on { background: var(--gold); color: #1a0b00; border-color: var(--gold); }
-.chip.swatch::before {
-  content: '';
-  display: inline-block;
-  width: 9px; height: 9px;
+
+.topbar-note {
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+.workbench {
+  display: grid;
+  grid-template-columns: 296px minmax(0, 1fr);
+  gap: 0;
+  min-height: calc(100vh - 53px);
+}
+
+/* Rail: sections separated by hairlines, each with its own spacing. */
+.rail {
+  background: var(--plum-panel);
+  border-right: 1px solid var(--plum-line);
+  padding: 4px 0 24px;
+  overflow-y: auto;
+}
+
+.rail-sec {
+  padding: 16px 16px 18px;
+  border-bottom: 1px solid var(--plum-line);
+}
+
+.rail-sec h2 {
+  margin: 0 0 12px;
+  font-family: Anton, 'Arial Narrow', sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.layout-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.layout-btn,
+.action-btn {
+  border: 1px solid var(--plum-line);
+  background: #241233;
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 10px 8px;
+  font-size: 13px;
+  transition: border-color 160ms var(--ease-out), background 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+
+.layout-btn:hover,
+.action-btn:hover {
+  border-color: var(--gold);
+}
+
+.layout-btn:active,
+.action-btn:active {
+  transform: scale(0.96);
+}
+
+.layout-btn.active {
+  border-color: var(--gold);
+  background: #3a1c52;
+  color: var(--gold-soft);
+}
+
+.grade-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.grade-btn {
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: var(--sw, #888);
-  margin-right: 6px;
-  vertical-align: -1px;
-}
-.field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
-.field input {
-  display: block;
-  width: 100%;
-  margin-top: 5px;
-  padding: 8px 10px;
-  font: 600 14px system-ui, sans-serif;
-  color: var(--ink);
-  background: var(--bg-2);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-in);
-  outline: none;
-}
-.field input:focus { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(245,185,12,0.25); }
-.thumb-row { display: flex; gap: 6px; flex-wrap: wrap; }
-.thumb {
-  width: 52px; height: 52px;
+  border: 2px solid transparent;
   padding: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-in);
-  overflow: hidden;
-  cursor: pointer;
-  background: var(--bg-2);
-  transition: transform 120ms ease-out, border-color 120ms ease-out;
+  transition: border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
 }
-.thumb:hover { border-color: var(--gold); }
-.thumb:active { transform: scale(0.96); }
-.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; outline: 1px solid rgba(255,255,255,0.10); }
-.hint { font-size: 12px; line-height: 1.5; color: var(--muted); margin: 10px 0 0; }
-.panel-info { font-size: 13px; color: var(--ink); margin: 0 0 10px; min-height: 18px; }
-.row { display: flex; gap: 8px; }
 
-/* Stage */
-.stage { min-width: 0; }
-.canvas-wrap {
-  background: #0b0512;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-out);
-  padding: 12px;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.04), 0 18px 48px rgba(0,0,0,0.5);
+.grade-btn:hover {
+  transform: scale(1.08);
 }
-#preview {
+
+.grade-btn:active {
+  transform: scale(0.96);
+}
+
+.grade-btn.active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px var(--gold);
+}
+
+.text-input {
+  width: 100%;
+  background: #12081c;
+  border: 1px solid var(--plum-line);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.text-input:focus {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+  border-color: var(--gold);
+}
+
+.photo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.photo-btn {
+  width: 76px;
+  border: 1px solid var(--plum-line);
+  border-radius: 10px;
+  background: #241233;
+  padding: 4px 4px 6px;
+  color: var(--ink-dim);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  transition: border-color 160ms var(--ease-out), transform 160ms var(--ease-out);
+}
+
+.photo-btn:hover {
+  border-color: var(--gold);
+}
+
+.photo-btn:active {
+  transform: scale(0.96);
+}
+
+.photo-btn img {
   display: block;
   width: 100%;
-  height: auto;
-  border-radius: var(--radius-in);
-  outline: 1px solid rgba(255,255,255,0.10);
-  cursor: crosshair;
-  touch-action: none;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 7px;
+  outline: 1px solid rgba(255, 255, 255, 0.12);
 }
-.stage-note { font-size: 12px; color: var(--muted); margin: 10px 2px 0; }
 
-/* Screenshot mode (cover only): bare canvas, no editor chrome. */
+.photo-btn span {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-btn {
+  display: block;
+  text-align: center;
+  border: 1px dashed var(--gold);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+  color: var(--gold-soft);
+  cursor: pointer;
+  transition: background 160ms var(--ease-out);
+}
+
+.upload-btn:hover {
+  background: rgba(242, 183, 5, 0.1);
+}
+
+.zoom-row {
+  display: flex;
+  gap: 8px;
+}
+
+.zoom-row .action-btn {
+  flex: 1;
+}
+
+.export-btn {
+  width: 100%;
+  margin-top: 8px;
+  border: none;
+  border-radius: 8px;
+  background: var(--gold);
+  color: #1c0518;
+  font-family: Anton, 'Arial Narrow', sans-serif;
+  font-size: 15px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 12px;
+  box-shadow: 0 4px 0 #a67c00, 0 10px 24px rgba(0, 0, 0, 0.5);
+  transition: transform 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+}
+
+.export-btn:hover {
+  box-shadow: 0 4px 0 #a67c00, 0 14px 28px rgba(0, 0, 0, 0.55);
+}
+
+.export-btn:active {
+  transform: scale(0.96);
+  box-shadow: 0 2px 0 #a67c00, 0 6px 14px rgba(0, 0, 0, 0.5);
+}
+
+/* Stage: the canvas carries a gold frame and a layered shadow, like a
+ * framed print on the wall — the one place the chrome gets loud. */
+.stage-wrap {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+#stage {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  background: var(--plum);
+  border: 3px solid var(--gold);
+  outline: 1px solid rgba(255, 255, 255, 0.15);
+  outline-offset: 3px;
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.6),
+    0 18px 40px rgba(0, 0, 0, 0.55),
+    0 40px 90px rgba(0, 0, 0, 0.4);
+  cursor: crosshair;
+}
+
+.stage-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-dim);
+  text-align: center;
+}
+
+/* Screenshot mode: the cover fills the viewport, no chrome at all. */
+body.shot-cover {
+  background: #160a20;
+}
+
 body.shot-cover .topbar,
-body.shot-cover .studio { display: none; }
-body.shot-cover { background: #0e0416; }
-#shot-holder { display: none; }
-body.shot-cover #shot-holder { display: block; }
-#shot-canvas { display: block; }
+body.shot-cover .rail,
+body.shot-cover .stage-hint {
+  display: none;
+}
 
-@media (max-width: 900px) {
-  .studio { grid-template-columns: 1fr; }
+body.shot-cover .workbench {
+  display: block;
+  min-height: 0;
+}
+
+body.shot-cover .stage-wrap {
+  padding: 0;
+  display: block;
+}
+
+body.shot-cover #stage {
+  border: none;
+  outline: none;
+  box-shadow: none;
+  max-width: none;
+}
+
+/* Screenshot mode for the editor: keep the rail, hide the hint text. */
+body.shot-editor .stage-hint {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .rail {
+    border-right: none;
+    border-bottom: 1px solid var(--plum-line);
+  }
+
+  .topbar-note {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .layout-btn,
+  .action-btn,
+  .grade-btn,
+  .photo-btn,
+  .export-btn,
+  .upload-btn {
+    transition: none;
+  }
 }

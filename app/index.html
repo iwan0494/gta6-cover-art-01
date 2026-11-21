@@ -3,234 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neon Coast Cover Studio</title>
 <link rel="icon" href="data:,">
-<title>Neon Coast Cover Studio — GTA-style key art</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="topbar">
   <div class="brand">
     <span class="brand-mark">NC</span>
-    <span class="brand-name">NEON COAST</span>
-    <span class="brand-sub">Cover Studio</span>
+    <span class="brand-name">Neon Coast</span>
+    <span class="brand-sub">Cover Studio &mdash; a Leonida story</span>
   </div>
-  <div class="top-actions">
-    <button id="undoBtn" class="btn ghost" type="button">Undo</button>
-    <button id="redoBtn" class="btn ghost" type="button">Redo</button>
-    <button id="exportBtn" class="btn gold" type="button">Export 3 PNGs</button>
-  </div>
+  <div class="topbar-note">Every photo stays on your machine. No server, no network.</div>
 </header>
-
-<main class="studio">
-  <aside class="rail">
-    <section class="rail-block">
-      <h2>Layout</h2>
-      <div id="layoutRow" class="chip-row"></div>
-    </section>
-    <section class="rail-block">
-      <h2>Grade</h2>
-      <div id="gradeRow" class="chip-row"></div>
-    </section>
-    <section class="rail-block">
-      <h2>Title</h2>
-      <label class="field">Cover title
-        <input id="titleInput" type="text" value="NEON COAST" maxlength="24">
-      </label>
-      <label class="field">Subtitle
-        <input id="subInput" type="text" value="Paid in Sunsets" maxlength="40">
-      </label>
-    </section>
-    <section class="rail-block">
-      <h2>Photos</h2>
-      <div id="sampleRow" class="thumb-row"></div>
-      <label class="btn upload">Upload your photo
-        <input id="uploadInput" type="file" accept="image/*" multiple hidden>
-      </label>
-      <p class="hint">Click a panel on the cover, then drag to reframe it, scroll to zoom, or press Next shot.</p>
-    </section>
-    <section class="rail-block">
-      <h2>Selected panel</h2>
-      <p id="panelInfo" class="panel-info">No panel selected — click the cover.</p>
-      <div class="row">
-        <button id="shotBtn" class="btn" type="button">Next shot</button>
-        <button id="resetBtn" class="btn ghost" type="button">Reset panel</button>
-      </div>
-    </section>
-  </aside>
-
-  <section class="stage">
-    <div class="canvas-wrap">
-      <canvas id="preview" width="1280" height="720"></canvas>
-    </div>
-    <p class="stage-note">Live preview — what you see is the exported cover.</p>
+<main class="workbench">
+  <aside id="rail" class="rail" aria-label="Cover controls"></aside>
+  <section class="stage-wrap">
+    <canvas id="stage" width="1280" height="720" aria-label="Cover preview"></canvas>
+    <p class="stage-hint">Click a panel to select it, drag to reframe, scroll to zoom. Export makes all three post sizes at once.</p>
   </section>
 </main>
-
-<div id="shot-holder"></div>
-
-<script type="module">
-import { defaultState, snapshot, restoreState, renderPreview, exportAll, addUpload, cycleShot, refillForLayout, LAYOUTS, GRADES } from './src/editor.js';
-import { layoutById } from './src/cover.js';
-import { SAMPLES } from './src/faces.js';
-import { bootShots } from './src/shots.js';
-
-const state = defaultState();
-const canvas = document.getElementById('preview');
-const undoStack = [];
-const redoStack = [];
-let selected = -1;
-let drag = null;
-
-function pushHistory() {
-  undoStack.push(snapshot(state));
-  if (undoStack.length > 60) undoStack.shift();
-  redoStack.length = 0;
-}
-function repaint() { renderPreview(canvas, state); }
-
-function buildChips() {
-  const lr = document.getElementById('layoutRow');
-  lr.innerHTML = '';
-  LAYOUTS.forEach((l) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'chip' + (state.layout === l.id ? ' on' : '');
-    b.textContent = l.name;
-    b.onclick = () => { pushHistory(); state.layout = l.id; refillForLayout(state); selected = -1; buildChips(); updatePanelInfo(); repaint(); };
-    lr.appendChild(b);
-  });
-  const gr = document.getElementById('gradeRow');
-  gr.innerHTML = '';
-  GRADES.forEach((g) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'chip swatch' + (state.grade === g.id ? ' on' : '');
-    b.style.setProperty('--sw', g.tint);
-    b.textContent = g.name;
-    b.onclick = () => { pushHistory(); state.grade = g.id; buildChips(); repaint(); };
-    gr.appendChild(b);
-  });
-  const sr = document.getElementById('sampleRow');
-  sr.innerHTML = '';
-  SAMPLES.forEach((s) => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'thumb'; b.title = s.role;
-    const img = document.createElement('img');
-    img.src = s.file; img.alt = s.role;
-    b.appendChild(img);
-    b.onclick = () => {
-      if (selected < 0) { alert('Click a panel on the cover first.'); return; }
-      pushHistory();
-      state.overrides[selected] = { ...(state.overrides[selected] || {}), sample: s.id, shot: 'face', dx: 0, dy: 0, zoom: 1 };
-      updatePanelInfo(); repaint();
-    };
-    sr.appendChild(b);
-  });
-}
-
-function updatePanelInfo() {
-  const el = document.getElementById('panelInfo');
-  if (selected < 0) { el.textContent = 'No panel selected — click the cover.'; return; }
-  const def = layoutById(state.layout);
-  const p = def.panels(canvas.width, canvas.height)[selected];
-  const ov = state.overrides[selected] || {};
-  el.textContent = `Panel ${selected + 1}: ${ov.sample || p.sample} — ${ov.shot || p.shot} shot (${p.role})`;
-}
-
-function panelAt(cx, cy) {
-  const def = layoutById(state.layout);
-  const panels = def.panels(canvas.width, canvas.height);
-  for (let i = panels.length - 1; i >= 0; i--) {
-    const p = panels[i];
-    if (cx >= p.x * canvas.width && cx <= (p.x + p.w) * canvas.width &&
-        cy >= p.y * canvas.height && cy <= (p.y + p.h) * canvas.height) return i;
-  }
-  return -1;
-}
-
-canvas.addEventListener('pointerdown', (e) => {
-  const r = canvas.getBoundingClientRect();
-  const cx = (e.clientX - r.left) * (canvas.width / r.width);
-  const cy = (e.clientY - r.top) * (canvas.height / r.height);
-  const i = panelAt(cx, cy);
-  selected = i;
-  updatePanelInfo();
-  if (i >= 0) {
-    drag = { x: cx, y: cy, moved: false };
-    canvas.setPointerCapture(e.pointerId);
-  }
-});
-canvas.addEventListener('pointermove', (e) => {
-  if (!drag || selected < 0) return;
-  const r = canvas.getBoundingClientRect();
-  const cx = (e.clientX - r.left) * (canvas.width / r.width);
-  const cy = (e.clientY - r.top) * (canvas.height / r.height);
-  const dx = (cx - drag.x) / canvas.width;
-  const dy = (cy - drag.y) / canvas.height;
-  if (Math.abs(dx) + Math.abs(dy) > 0.001) drag.moved = true;
-  if (drag.moved) {
-    const ov = state.overrides[selected] || {};
-    state.overrides[selected] = { ...ov, dx: (ov.dx || 0) - dx * 0.6, dy: (ov.dy || 0) - dy * 0.6 };
-    drag.x = cx; drag.y = cy;
-    repaint();
-  }
-});
-canvas.addEventListener('pointerup', () => {
-  if (drag && drag.moved) pushHistory();
-  drag = null;
-});
-canvas.addEventListener('wheel', (e) => {
-  if (selected < 0) return;
-  e.preventDefault();
-  const ov = state.overrides[selected] || {};
-  const z = Math.max(1, Math.min(3, (ov.zoom || 1) * (e.deltaY < 0 ? 1.12 : 0.89)));
-  state.overrides[selected] = { ...ov, zoom: z };
-  repaint();
-}, { passive: false });
-
-document.getElementById('titleInput').addEventListener('input', (e) => { state.title = e.target.value.toUpperCase(); repaint(); });
-document.getElementById('subInput').addEventListener('input', (e) => { state.subtitle = e.target.value; repaint(); });
-document.getElementById('shotBtn').onclick = () => {
-  if (selected < 0) return;
-  pushHistory(); cycleShot(state, selected); updatePanelInfo(); repaint();
-};
-document.getElementById('resetBtn').onclick = () => {
-  if (selected < 0) return;
-  pushHistory(); delete state.overrides[selected]; updatePanelInfo(); repaint();
-};
-document.getElementById('undoBtn').onclick = () => {
-  const prev = undoStack.pop();
-  if (!prev) return;
-  redoStack.push(snapshot(state));
-  restoreState(state, prev); buildChips(); updatePanelInfo(); repaint();
-};
-document.getElementById('redoBtn').onclick = () => {
-  const next = redoStack.pop();
-  if (!next) return;
-  undoStack.push(snapshot(state));
-  restoreState(state, next); buildChips(); updatePanelInfo(); repaint();
-};
-document.getElementById('exportBtn').onclick = () => {
-  exportAll(state, (blob, name) => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
-  });
-};
-document.getElementById('uploadInput').addEventListener('change', (e) => {
-  const files = [...e.target.files];
-  if (!files.length) return;
-  let done = 0;
-  files.forEach((f) => addUpload(state, f, () => { if (++done === files.length) repaint(); }));
-});
-
-window.__buildEditorUI = () => { refillForLayout(state); buildChips(); updatePanelInfo(); };
-
-if (!bootShots()) {
-  window.__buildEditorUI();
-  document.fonts.ready.then(repaint);
-  repaint();
-}
-</script>
+<script src="src/faces.js"></script>
+<script src="src/cover.js"></script>
+<script src="src/poster.js"></script>
+<script src="src/editor.js"></script>
+<script src="src/shots.js"></script>
 </body>
 </html>

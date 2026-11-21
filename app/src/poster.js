@@ -1,247 +1,349 @@
-// poster.js — film-poster furniture drawn on the canvas: chrome 3D
-// title, neon subtitle, quote bar, ribbon, billing block, seal,
-// barcode and role tags. Title position is computed exactly once per
-// frame so it can never double-center or overflow its block.
+// Neon Coast Cover Studio — poster furniture, drawn on canvas.
+//
+// The title, ribbon, billing and the rest are drawn, not typeset in HTML,
+// so the exported PNGs look exactly like the preview. Every piece of text
+// is measured once and placed from that one measurement: the title is
+// never centred twice, and tags and billing shrink until they fit instead
+// of running off the panel edge.
 
-import { BANDS } from './cover.js';
+(function () {
+  'use strict';
 
-const GOLD = '#f5b90c';
-const PINK = '#ff2e88';
-
-// Role tag: black chip with a gold underline, shrunk to fit the panel
-// width so it never clips at a narrow panel's right edge.
-export function drawRoleTag(ctx, role, px) {
-  const pad = Math.max(6, px.w * 0.04);
-  // Cap the size so a tag on the big hero panel stays a tag, not a banner.
-  const cap = Math.max(10, px.h * 0.055);
-  let fs = Math.max(9, Math.min(px.h * 0.16, px.w * 0.085, cap));
-  ctx.save();
-  ctx.font = `700 ${fs}px Anton, sans-serif`;
-  let tw = ctx.measureText(role).width;
-  while (tw + pad * 2 > px.w - 8 && fs > 7) {
-    fs -= 1;
-    ctx.font = `700 ${fs}px Anton, sans-serif`;
-    tw = ctx.measureText(role).width;
+  function mulberry32(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a |= 0;
+      a = (a + 0x6d2b79f5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
   }
-  const th = fs * 1.5;
-  ctx.fillStyle = 'rgba(8,3,14,0.92)';
-  ctx.fillRect(px.x + 4, px.y + 4, tw + pad * 2, th);
-  ctx.fillStyle = GOLD;
-  ctx.fillRect(px.x + 4, px.y + 4 + th - 3, tw + pad * 2, 3);
-  ctx.fillStyle = '#ffffff';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(role, px.x + 4 + pad, px.y + 4 + th / 2);
-  ctx.restore();
-}
 
-function fitFont(ctx, text, maxWidth, startSize, family, weight = 700) {
-  let fs = startSize;
-  ctx.font = `${weight} ${fs}px ${family}`;
-  while (ctx.measureText(text).width > maxWidth && fs > 8) {
-    fs -= 2;
-    ctx.font = `${weight} ${fs}px ${family}`;
-  }
-  return fs;
-}
-
-function drawChromeTitle(ctx, W, H, title) {
-  const band = BANDS.title;
-  const bx = W * 0.055, bw = W * 0.89;
-  const by = band.y * H, bh = band.h * H;
-
-  // Halftone title block: dark panel, gold frame, faint dot field.
-  ctx.save();
-  ctx.fillStyle = '#1a0b28';
-  ctx.fillRect(bx, by, bw, bh);
-  ctx.strokeStyle = GOLD; ctx.lineWidth = Math.max(2, W * 0.002);
-  ctx.strokeRect(bx + 2, by + 2, bw - 4, bh - 4);
-  ctx.fillStyle = 'rgba(255,255,255,0.07)';
-  const step = Math.max(9, W * 0.011);
-  for (let y = by + 10; y < by + bh - 8; y += step) {
-    for (let x = bx + 12; x < bx + bw - 8; x += step) {
-      if (((x / step) | 0) % 2 === ((y / step) | 0) % 2) ctx.fillRect(x, y, 2, 2);
+  // A five-pointed star path at (cx, cy) with outer radius r.
+  function starPath(ctx, cx, cy, r) {
+    var inner = r * 0.42;
+    ctx.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var rad = i % 2 === 0 ? r : inner;
+      var ang = -Math.PI / 2 + (i * Math.PI) / 5;
+      var x = cx + rad * Math.cos(ang);
+      var y = cy + rad * Math.sin(ang);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
     }
+    ctx.closePath();
   }
 
-  // Title size comes from the block height, so the chrome can never
-  // spill over the top of the block (the R4 landscape bug).
-  const titleSize = fitFont(ctx, title, bw * 0.94, bh * 0.62, 'Anton, sans-serif');
-  const subSize = Math.max(14, titleSize * 0.30);
-  const cx = W / 2;
-  const titleY = by + bh * 0.56;
-  const subY = by + bh * 0.86;
-
-  ctx.save();
-  ctx.translate(cx, titleY);
-  ctx.transform(1, 0, -0.06, 1, 0, 0); // slight skew, poster style
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `700 ${titleSize}px Anton, sans-serif`;
-  // Layered extrusion: dark offsets stacked downward.
-  const layers = Math.max(3, Math.round(titleSize / 16));
-  for (let i = layers; i >= 1; i--) {
-    ctx.fillStyle = i % 2 ? '#5c1040' : '#2a0a3a';
-    ctx.fillText(title, i * 1.6, i * 2.2);
+  // Fit a font size so the text fits maxW: start big, shrink, measure.
+  function fitFont(ctx, text, family, startPx, maxW, weight) {
+    var px = startPx;
+    var font = function (s) {
+      return (weight ? weight + ' ' : '') + s + 'px ' + family;
+    };
+    ctx.font = font(px);
+    while (px > 8 && ctx.measureText(text).width > maxW) {
+      px -= 1;
+      ctx.font = font(px);
+    }
+    return px;
   }
-  // Chrome face: silver -> gold -> pink vertical gradient.
-  const grad = ctx.createLinearGradient(0, -titleSize * 0.55, 0, titleSize * 0.55);
-  grad.addColorStop(0, '#fdfdfd');
-  grad.addColorStop(0.38, '#ffe9a8');
-  grad.addColorStop(0.62, '#f5b90c');
-  grad.addColorStop(1, '#ff5e8a');
-  ctx.fillStyle = grad;
-  ctx.fillText(title, 0, 0);
-  // Top highlight + dark outline.
-  ctx.strokeStyle = 'rgba(20,6,30,0.85)';
-  ctx.lineWidth = Math.max(2, titleSize * 0.03);
-  ctx.strokeText(title, 0, 0);
-  ctx.restore();
 
-  ctx.restore();
-  return { subY, subSize, cx };
-}
-
-function drawSubtitle(ctx, W, H, subtitle, geom) {
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `${geom.subSize}px Pacifico, cursive`;
-  ctx.shadowColor = PINK; ctx.shadowBlur = 18;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(subtitle, geom.cx, geom.subY);
-  ctx.shadowColor = '#2fd6ff'; ctx.shadowBlur = 8;
-  ctx.fillText(subtitle, geom.cx, geom.subY);
-  ctx.restore();
-}
-
-function drawQuoteBar(ctx, W, H) {
-  const band = BANDS.quote;
-  const y = band.y * H + band.h * H * 0.5;
-  ctx.save();
-  ctx.textBaseline = 'middle';
-  const starSize = Math.max(13, H * 0.022);
-  ctx.font = `${starSize}px sans-serif`;
-  ctx.fillStyle = GOLD;
-  const stars = '★★★★★';
-  const sx = W * 0.02;
-  ctx.fillText(stars, sx, y);
-  const qx = sx + ctx.measureText(stars).width + W * 0.012;
-  const qSize = Math.max(12, H * 0.02);
-  ctx.font = `italic ${qSize}px Georgia, serif`;
-  ctx.fillStyle = '#f3e9ff';
-  ctx.fillText('\u201cThe most wanted sunset in Leonida\u201d', qx, y);
-  // VOL. 1 chip, pinned to the right edge.
-  const chip = 'VOL. 1';
-  const cSize = Math.max(11, H * 0.018);
-  ctx.font = `700 ${cSize}px Anton, sans-serif`;
-  const cw = ctx.measureText(chip).width + W * 0.02;
-  const ch = cSize * 1.7;
-  const cx0 = W * 0.982 - cw;
-  ctx.strokeStyle = GOLD; ctx.lineWidth = 1.6;
-  ctx.strokeRect(cx0, y - ch / 2, cw, ch);
-  ctx.fillStyle = GOLD;
-  ctx.textAlign = 'center';
-  ctx.fillText(chip, cx0 + cw / 2, y);
-  ctx.restore();
-}
-
-function drawRibbon(ctx, W, H) {
-  const band = BANDS.ribbon;
-  const y = band.y * H, h = band.h * H;
-  const x0 = W * 0.20, x1 = W * 0.80;
-  ctx.save();
-  ctx.fillStyle = PINK;
-  ctx.beginPath();
-  ctx.moveTo(x0 + h * 0.5, y); ctx.lineTo(x1 - h * 0.5, y);
-  ctx.lineTo(x1, y + h / 2); ctx.lineTo(x1 - h * 0.5, y + h);
-  ctx.lineTo(x0 + h * 0.5, y + h); ctx.lineTo(x0, y + h / 2);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,255,0.25)';
-  ctx.fillRect(x0 + h * 0.5, y, (x1 - x0) - h, 2);
-  const text = 'EVERYONE WANTS A CUT OF THE SUNSET';
-  const fs = fitFont(ctx, text, (x1 - x0) * 0.86, h * 0.62, 'Anton, sans-serif');
-  ctx.font = `700 ${fs}px Anton, sans-serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(text, (x0 + x1) / 2, y + h / 2 + 1);
-  ctx.restore();
-}
-
-function drawBarcode(ctx, x, y, w, h) {
-  ctx.save();
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
-  ctx.fillStyle = '#0c0614';
-  let cx = x;
-  const bars = [3, 1, 2, 1, 1, 3, 2, 2, 1, 1, 3, 1, 2, 3, 1, 1, 2, 1, 3, 2];
-  for (const b of bars) {
-    const bw = b * (w / 44);
-    ctx.fillRect(cx, y, bw, h);
-    cx += bw + (w / 44);
-    if (cx > x + w) break;
+  // The chrome 3D title: one measurement, one x. Extrusion layers first
+  // (dark, stepped down-right), then the chrome gradient fill, a dark
+  // outline, and a white sheen clipped to the top half.
+  function chromeTitle(ctx, text, W, yTop, height, grade) {
+    var maxW = W * 0.86;
+    var px = fitFont(ctx, text, 'Anton, "Arial Narrow", sans-serif', height * 0.72, maxW, '');
+    var font = px + 'px Anton, "Arial Narrow", sans-serif';
+    ctx.font = font;
+    var tw = ctx.measureText(text).width;
+    var x = (W - tw) / 2;
+    var baseline = yTop + height * 0.62;
+    ctx.save();
+    ctx.translate(-W * 0.004, 0);
+    ctx.transform(1, 0, -0.05, 1, 0, 0);
+    var grad = ctx.createLinearGradient(0, yTop, 0, yTop + height);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.32, '#ffe9a8');
+    grad.addColorStop(0.55, '#f2b705');
+    grad.addColorStop(0.78, '#ff7a3d');
+    grad.addColorStop(1, '#ff2e88');
+    var shades = ['#2a0a2e', '#3d0f42', '#571357', '#6e1a5e'];
+    for (var i = 0; i < shades.length; i++) {
+      ctx.fillStyle = shades[i];
+      ctx.fillText(text, x + (i + 1) * 2.2, baseline + (i + 1) * 2.4);
+    }
+    ctx.fillStyle = grad;
+    ctx.fillText(text, x, baseline);
+    ctx.lineWidth = Math.max(1.5, px * 0.03);
+    ctx.strokeStyle = '#1c0518';
+    ctx.strokeText(text, x, baseline);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x - 4, yTop, tw + 8, height * 0.48);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255,255,255,0.30)';
+    ctx.fillText(text, x, baseline);
+    ctx.restore();
+    ctx.restore();
+    return { x: x, width: tw, size: px };
   }
-  ctx.restore();
-}
 
-function drawSeal(ctx, W, H) {
-  const band = BANDS.footer;
-  const cy = band.y * H + band.h * H * 0.55;
-  const r = Math.min(W, H) * 0.038;
-  const cx = W * 0.955;
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#1a0b28'; ctx.fill();
-  ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.stroke();
-  ctx.beginPath(); ctx.arc(cx, cy, r * 0.78, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(245,185,12,0.6)'; ctx.lineWidth = 1; ctx.stroke();
-  ctx.fillStyle = GOLD;
-  ctx.font = `${r * 0.72}px sans-serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('\u2605', cx, cy - r * 0.22);
-  ctx.font = `700 ${r * 0.42}px Anton, sans-serif`;
-  ctx.fillText('2026', cx, cy + r * 0.38);
-  ctx.restore();
-}
-
-function drawFooter(ctx, W, H) {
-  const band = BANDS.footer;
-  const y = band.y * H, h = band.h * H;
-  ctx.save();
-  // Barcode + COMING SOON, bottom left.
-  const bw = W * 0.075, bh = h * 0.85;
-  drawBarcode(ctx, W * 0.018, y + h * 0.05, bw, bh);
-  const cSize = Math.max(11, H * 0.018);
-  ctx.font = `700 ${cSize}px Anton, sans-serif`;
-  ctx.fillStyle = GOLD;
-  ctx.textBaseline = 'middle';
-  ctx.fillText('COMING SOON', W * 0.018 + bw + W * 0.012, y + h * 0.5);
-  // Billing block, centered, shrunk to fit the gap between the
-  // COMING SOON label and the seal (never collides with either).
-  const left = W * 0.018 + bw + W * 0.012 + ctx.measureText('COMING SOON').width + W * 0.03;
-  const right = W * 0.955 - Math.min(W, H) * 0.05;
-  const lines = [
-    'NEON COAST  \u2022  A LEONIDA STORY  \u2022  STARRING THE DRIVER  THE CAPTAIN  THE ARTIST  THE LOOKOUT  THE SINGER',
-    'DIRECTED BY NEON COAST STUDIO  \u2022  MUSIC BY THE STAGE SINGER  \u2022  SHOT ON LEONIDA BOULEVARD',
-  ];
-  let fs = Math.max(8, H * 0.0135);
-  ctx.font = `${fs}px sans-serif`;
-  while (Math.max(ctx.measureText(lines[0]).width, ctx.measureText(lines[1]).width) > right - left && fs > 6) {
-    fs -= 0.5;
-    ctx.font = `${fs}px sans-serif`;
+  function neonSubtitle(ctx, text, W, yTop, height) {
+    var maxW = W * 0.6;
+    var px = fitFont(ctx, text, 'Pacifico, cursive', height * 0.5, maxW, '');
+    ctx.font = px + 'px Pacifico, cursive';
+    var tw = ctx.measureText(text).width;
+    var x = (W - tw) / 2;
+    ctx.save();
+    ctx.shadowColor = '#ff2e88';
+    ctx.shadowBlur = px * 0.45;
+    ctx.fillStyle = '#fff0f7';
+    ctx.fillText(text, x, yTop + height * 0.62);
+    ctx.shadowColor = '#22d3ee';
+    ctx.shadowBlur = px * 0.2;
+    ctx.fillText(text, x, yTop + height * 0.62);
+    ctx.restore();
   }
-  ctx.fillStyle = 'rgba(243,233,255,0.85)';
-  ctx.textAlign = 'center';
-  ctx.fillText(lines[0], (left + right) / 2, y + h * 0.28);
-  ctx.fillText(lines[1], (left + right) / 2, y + h * 0.74);
-  ctx.restore();
-  drawSeal(ctx, W, H);
-}
 
-export function drawPosterFurniture(ctx, W, H, opts) {
-  const { title, subtitle } = opts;
-  drawQuoteBar(ctx, W, H);
-  const geom = drawChromeTitle(ctx, W, H, title);
-  drawSubtitle(ctx, W, H, subtitle, geom);
-  drawRibbon(ctx, W, H);
-  drawFooter(ctx, W, H);
-}
+  // A role tag pinned to a panel's top-left corner, shrunk to fit.
+  function drawRoleTag(ctx, label, panel) {
+    if (!label) return;
+    var tagH = Math.max(13, Math.min(panel.h * 0.1, 26));
+    var px = fitFont(ctx, label, 'Anton, "Arial Narrow", sans-serif', tagH * 0.66, panel.w - 10, '');
+    ctx.font = px + 'px Anton, "Arial Narrow", sans-serif';
+    var tw = ctx.measureText(label).width;
+    var w = tw + 12;
+    var h = tagH;
+    ctx.save();
+    ctx.fillStyle = 'rgba(10,5,18,0.92)';
+    ctx.fillRect(panel.x, panel.y, w, h);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = '#f2b705';
+    ctx.strokeRect(panel.x + 0.5, panel.y + 0.5, w, h);
+    ctx.fillStyle = '#ffd76a';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, panel.x + 6, panel.y + h / 2 + 0.5);
+    ctx.restore();
+  }
+
+  function drawEditionChip(ctx, panel) {
+    var label = 'SUNSET EDITION';
+    var tagH = Math.max(14, Math.min(panel.h * 0.085, 24));
+    var px = fitFont(ctx, label, 'Anton, "Arial Narrow", sans-serif', tagH * 0.62, panel.w * 0.32, '');
+    ctx.font = px + 'px Anton, "Arial Narrow", sans-serif';
+    var tw = ctx.measureText(label).width;
+    var w = tw + 12;
+    ctx.save();
+    ctx.fillStyle = '#f2b705';
+    ctx.fillRect(panel.x + panel.w - w, panel.y, w, tagH);
+    ctx.fillStyle = '#1c0518';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, panel.x + panel.w - w + 6, panel.y + tagH / 2 + 0.5);
+    ctx.restore();
+  }
+
+  function drawQuoteBar(ctx, W, y, h) {
+    var starR = h * 0.32;
+    var x = W * 0.02;
+    ctx.save();
+    ctx.fillStyle = '#f2b705';
+    for (var i = 0; i < 5; i++) {
+      starPath(ctx, x + starR + i * starR * 2.3, y + h / 2, starR);
+      ctx.fill();
+    }
+    var textX = x + starR * 2.3 * 5 + W * 0.012;
+    var px = fitFont(ctx, '\u201cThe most wanted sunset in Leonida\u201d', 'italic Georgia, serif', h * 0.62, W * 0.62, '');
+    ctx.font = 'italic ' + px + 'px Georgia, serif';
+    ctx.fillStyle = '#e8d9f2';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('\u201cThe most wanted sunset in Leonida\u201d', textX, y + h / 2 + 0.5);
+    ctx.restore();
+  }
+
+  function drawRibbon(ctx, text, W, y, h) {
+    var notch = h * 0.55;
+    var x0 = W * 0.13;
+    var x1 = W * 0.87;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath();
+    ctx.moveTo(x0 + notch, y + 5);
+    ctx.lineTo(x1 - notch, y + 5);
+    ctx.lineTo(x1, y + h / 2 + 5);
+    ctx.lineTo(x1 - notch, y + h + 5);
+    ctx.lineTo(x0 + notch, y + h + 5);
+    ctx.lineTo(x0, y + h / 2 + 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ff2e88';
+    ctx.beginPath();
+    ctx.moveTo(x0 + notch, y);
+    ctx.lineTo(x1 - notch, y);
+    ctx.lineTo(x1, y + h / 2);
+    ctx.lineTo(x1 - notch, y + h);
+    ctx.lineTo(x0 + notch, y + h);
+    ctx.lineTo(x0, y + h / 2);
+    ctx.closePath();
+    ctx.fill();
+    var px = fitFont(ctx, text, 'Anton, "Arial Narrow", sans-serif', h * 0.58, x1 - x0 - notch * 2 - 16, '');
+    ctx.font = px + 'px Anton, "Arial Narrow", sans-serif';
+    var tw = ctx.measureText(text).width;
+    ctx.fillStyle = '#ffffff';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, (W - tw) / 2, y + h / 2 + 0.5);
+    ctx.restore();
+  }
+
+  // Billing block, left-aligned at x, shrunk to fit maxW. The caller
+  // places it to the right of COMING SOON so the two never collide.
+  function drawBilling(ctx, x, y, maxW) {
+    var lines = [
+      'NEON COAST  \u2022  A LEONIDA STORY  \u2022  STARRING THE DRIVER  THE CAPTAIN  THE ARTIST  THE LOOKOUT  THE SINGER',
+      'DIRECTED BY NEON COAST STUDIO  \u2022  MUSIC BY THE STAGE SINGER  \u2022  SHOT ON LEONIDA BOULEVARD',
+    ];
+    var px = fitFont(ctx, lines[0], '"Arial Narrow", sans-serif', 13, maxW, '');
+    ctx.save();
+    ctx.fillStyle = 'rgba(232,217,242,0.75)';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.font = px + 'px "Arial Narrow", sans-serif';
+    ctx.fillText(lines[0], x, y);
+    ctx.fillText(lines[1], x, y + px * 1.5);
+    ctx.restore();
+  }
+
+  function drawBarcode(ctx, x, y, w, h) {
+    var rnd = mulberry32(4242);
+    ctx.save();
+    ctx.fillStyle = '#f4f0e6';
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#111111';
+    var bx = x + 2;
+    while (bx < x + w - 2) {
+      var bw = 1 + Math.floor(rnd() * 3);
+      if (rnd() > 0.45) ctx.fillRect(bx, y + 2, bw, h - 4);
+      bx += bw + 1 + Math.floor(rnd() * 2);
+    }
+    ctx.restore();
+  }
+
+  function drawSeal(ctx, cx, cy, r) {
+    ctx.save();
+    ctx.lineWidth = Math.max(1.5, r * 0.09);
+    ctx.strokeStyle = '#f2b705';
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.82, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#f2b705';
+    starPath(ctx, cx, cy - r * 0.22, r * 0.3);
+    ctx.fill();
+    ctx.font = Math.max(8, r * 0.42) + 'px Anton, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('2026', cx, cy + r * 0.42);
+    ctx.restore();
+  }
+
+  function drawVolChip(ctx, W, y) {
+    var label = 'VOL. 1';
+    var px = Math.max(11, W * 0.013);
+    ctx.save();
+    ctx.font = px + 'px Anton, sans-serif';
+    var w = ctx.measureText(label).width + 14;
+    var h = px + 8;
+    var x = W - w - W * 0.012;
+    ctx.fillStyle = 'rgba(10,5,18,0.92)';
+    ctx.fillRect(x, y, w, h);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#f2b705';
+    ctx.strokeRect(x + 0.75, y + 0.75, w - 1.5, h - 1.5);
+    ctx.fillStyle = '#ffd76a';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x + 7, y + h / 2 + 0.5);
+    ctx.restore();
+  }
+
+  function drawComingSoon(ctx, x, y, h) {
+    var label = 'COMING SOON';
+    var px = fitFont(ctx, label, 'Anton, sans-serif', h * 0.7, 400, '');
+    ctx.save();
+    ctx.font = px + 'px Anton, sans-serif';
+    ctx.fillStyle = '#f2b705';
+    ctx.textBaseline = 'middle';
+    var w = ctx.measureText(label).width;
+    ctx.fillText(label, x, y + h / 2 + 0.5);
+    ctx.restore();
+    return w;
+  }
+
+  // All the furniture, in the poster's own coordinate plan.
+  function drawFurniture(ctx, W, H, opts) {
+    var title = opts.title || 'NEON COAST';
+    var subtitle = opts.subtitle || 'Paid in Sunsets';
+    var bleed = !!opts.bleed;
+
+    drawVolChip(ctx, W, H * 0.008);
+    drawQuoteBar(ctx, W, H * 0.012, H * 0.038);
+
+    // Title block: dark slab, gold frame, faint halftone dots.
+    var bx = W * 0.045;
+    var by = H * 0.49;
+    var bw = W * 0.91;
+    var bh = H * 0.145;
+    ctx.save();
+    ctx.fillStyle = bleed ? 'rgba(16,7,26,0.88)' : '#1e0d2b';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = 'rgba(242,183,5,0.10)';
+    var step = Math.max(9, W / 110);
+    for (var hx = bx + step; hx < bx + bw - 4; hx += step) {
+      for (var hy = by + step; hy < by + bh - 4; hy += step) {
+        ctx.beginPath();
+        ctx.arc(hx, hy, 1.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.lineWidth = Math.max(1.5, W * 0.0016);
+    ctx.strokeStyle = '#f2b705';
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.restore();
+
+    chromeTitle(ctx, title, W, by + bh * 0.06, bh * 0.62, opts.grade);
+    neonSubtitle(ctx, subtitle, W, by + bh * 0.66, bh * 0.3);
+
+    drawRibbon(ctx, 'EVERYONE WANTS A CUT OF THE SUNSET', W, H * 0.655, H * 0.05);
+
+    // Footer: barcode + coming soon on the left, billing to their right,
+    // seal right. Billing starts after the measured COMING SOON width —
+    // centred billing used to run underneath it on portrait canvases.
+    var fy = H * 0.935;
+    var fh = H * 0.05;
+    var barW = W * 0.07;
+    drawBarcode(ctx, W * 0.015, fy, barW, fh);
+    var comingX = W * 0.015 + barW + W * 0.01;
+    var comingW = drawComingSoon(ctx, comingX, fy, fh);
+    var billX = comingX + comingW + W * 0.015;
+    var sealL = W * 0.965 - Math.min(W, H) * 0.032;
+    drawBilling(ctx, billX, fy + fh * 0.32, sealL - billX - W * 0.012);
+    drawSeal(ctx, W * 0.965, fy + fh / 2, Math.min(W, H) * 0.032);
+  }
+
+  window.NC.poster = {
+    chromeTitle: chromeTitle,
+    neonSubtitle: neonSubtitle,
+    drawRoleTag: drawRoleTag,
+    drawEditionChip: drawEditionChip,
+    drawQuoteBar: drawQuoteBar,
+    drawRibbon: drawRibbon,
+    drawBilling: drawBilling,
+    drawBarcode: drawBarcode,
+    drawSeal: drawSeal,
+    drawVolChip: drawVolChip,
+    drawComingSoon: drawComingSoon,
+    drawFurniture: drawFurniture,
+  };
+})();

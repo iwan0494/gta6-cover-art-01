@@ -1,65 +1,91 @@
-// shots.js — deterministic screenshot modes for the submission dossier.
-// ?shot=cover  renders the full poster on a bare canvas (no editor UI).
-// ?shot=editor renders the editor with the sample photos loaded.
-// Both set window.__shotReady = true once the canvas has painted, so a
-// headless browser can wait for the exact frame instead of guessing.
+// Neon Coast Cover Studio — screenshot scenes.
+//
+// ?shot=cover   renders the cover alone, filling the viewport: the dossier
+//               frame. The viewport size is the shot size (1280x720,
+//               1024x1280 or 1080x1080), so one render is the screenshot.
+// ?shot=editor  opens the editor with the sample photos loaded.
+// No query     opens the editor normally.
+//
+// When the frame is ready, window.__shotReady is set so the screenshot
+// driver knows it can capture.
 
-import { renderPreview, defaultState } from './editor.js';
-import { EXPORT_SIZES } from './cover.js';
+(function () {
+  'use strict';
 
-function markReady() {
-  window.__shotReady = true;
-  document.title = 'shot-ready';
-}
-
-function fitCanvas(canvas, w, h) {
-  canvas.width = w;
-  canvas.height = h;
-  canvas.style.width = w + 'px';
-  canvas.style.height = h + 'px';
-}
-
-export function bootShots() {
-  const params = new URLSearchParams(location.search);
-  const mode = params.get('shot');
-  if (!mode) return false;
-  const state = defaultState();
-  const w = parseInt(params.get('w') || '1280', 10);
-  const h = parseInt(params.get('h') || '720', 10);
-
-  if (mode === 'cover') {
-    const layout = params.get('layout') || 'hero';
-    state.layout = layout;
-    document.body.classList.add('shot-cover');
-    const holder = document.getElementById('shot-holder');
-    const canvas = document.createElement('canvas');
-    canvas.id = 'shot-canvas';
-    fitCanvas(canvas, w, h);
-    holder.appendChild(canvas);
-    // Paint twice: once after fonts arrive, once more to be safe.
-    const paint = () => renderPreview(canvas, state);
-    document.fonts.ready.then(() => { paint(); setTimeout(() => { paint(); markReady(); }, 120); });
-    setTimeout(() => { if (!window.__shotReady) { paint(); markReady(); } }, 2500);
-    return true;
+  function param(name) {
+    var m = new RegExp('[?&]' + name + '=([^&#]*)').exec(window.location.search);
+    return m ? decodeURIComponent(m[1]) : null;
   }
 
-  if (mode === 'editor') {
-    document.body.classList.add('shot-editor');
-    const canvas = document.getElementById('preview');
-    if (canvas) {
-      fitCanvas(canvas, w, h);
-      // Build the rail UI too, so the shot shows the real editor.
-      if (typeof window.__buildEditorUI === 'function') window.__buildEditorUI();
-      renderPreview(canvas, state);
-      document.fonts.ready.then(() => {
-        renderPreview(canvas, state);
-        setTimeout(markReady, 150);
-      });
-      setTimeout(() => { if (!window.__shotReady) markReady(); }, 2500);
+  function fontsReady() {
+    if (document.fonts && document.fonts.load) {
+      return Promise.all([
+        document.fonts.load('16px Anton'),
+        document.fonts.load('16px Pacifico'),
+        document.fonts.ready,
+      ]).catch(function () {});
     }
-    return true;
+    return Promise.resolve();
   }
-  return false;
-}
 
-export { EXPORT_SIZES };
+  function loadSamples() {
+    var loaders = window.NC.faces.SAMPLES.map(function (s) {
+      return new Promise(function (resolve, reject) {
+        var img = new Image();
+        img.onload = function () {
+          resolve({ id: s.id, img: img });
+        };
+        img.onerror = reject;
+        img.src = s.src;
+      });
+    });
+    return Promise.all(loaders).then(function (list) {
+      var map = {};
+      list.forEach(function (entry) {
+        map[entry.id] = entry.img;
+      });
+      return map;
+    });
+  }
+
+  function shotCover() {
+    document.body.classList.add('shot-cover');
+    var canvas = document.getElementById('stage');
+    var W = window.innerWidth;
+    var H = window.innerHeight;
+    canvas.width = W;
+    canvas.height = H;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    return Promise.all([loadSamples(), fontsReady()]).then(function (results) {
+      var images = results[0];
+      var ctx = canvas.getContext('2d');
+      window.NC.cover.renderCover(ctx, W, H, {
+        layout: 'hero',
+        grade: 'sunset',
+        title: 'NEON COAST',
+        subtitle: 'Paid in Sunsets',
+        images: images,
+      });
+      window.__shotReady = true;
+    });
+  }
+
+  function shotEditor() {
+    document.body.classList.add('shot-editor');
+    return window.NC.editor.init().then(function () {
+      window.__shotReady = true;
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var shot = param('shot');
+    if (shot === 'cover') {
+      shotCover();
+    } else if (shot === 'editor') {
+      shotEditor();
+    } else {
+      window.NC.editor.init();
+    }
+  });
+})();
